@@ -60,15 +60,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         Ken Klare, LANL P-4     (c)1989,1990,1991,1992
         NEED subscripted assignment.
 */
-#define DEF_FREED
-
 #include <mdsplus/mdsconfig.h>
 #include "STATICdef.h"
-#define DEF_FREEXD
-#define DEF_FREED
 #include "tdithreadsafe.h"
 #include "tdirefstandard.h"
-#include "tdishrp.h"
 #include <libroutines.h>
 #include <strroutines.h>
 #include <stdio.h>
@@ -79,15 +74,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <mdsshr.h>
 #include <string.h>
+#include <inttypes.h>
 #include <mdsshr_messages.h>
 
 // #define DEBUG
-
-extern unsigned short OpcEquals, OpcEqualsFirst;
-extern unsigned short OpcFun;
-extern unsigned short OpcIn, OpcInOut, OpcOptional, OpcOut, OpcAsIs;
-extern unsigned short OpcPostDec, OpcPostInc, OpcPreDec, OpcPreInc;
-extern unsigned short OpcPrivate, OpcPublic, OpcVar;
+#ifdef DEBUG
+# define DBG(...) do{fprintf(stderr,__VA_ARGS__);fprintf(stdout,__VA_ARGS__);}while(0)
+#else
+# define DBG(...) {}
+#endif
 
 extern int TdiFaultHandler();
 extern int TdiData();
@@ -98,6 +93,7 @@ extern int TdiPutLong();
 extern int TdiEquals();
 extern int TdiSubtract();
 extern int TdiAdd();
+extern int TdiResetGetRecord();
 
 	/*******************************************
         This uses the balanced binary tree routines.
@@ -154,8 +150,8 @@ struct descriptor *Tdi3Narg(){
 */
 int TdiPutLogical(unsigned char data, struct descriptor_xd *out_ptr){
   INIT_STATUS;
-  unsigned short len = (unsigned short)sizeof(unsigned char);
-  unsigned char dtype = (unsigned char)DTYPE_BU;
+  length_t len = (length_t)sizeof(unsigned char);
+  dtype_t dtype = DTYPE_BU;
   if (!out_ptr)
     return TdiNULL_PTR;
   status = MdsGet1DxS(&len, &dtype, out_ptr);
@@ -286,24 +282,25 @@ STATIC_ROUTINE int TdiFindIdent(int search,
                 Could have (public _a+=6)++ as argument.
                 So strip ++ and += and use public.
                 ***************************************/
-      if (code == OpcPublic)
+      if (code == OPC_PUBLIC)
         status = TdiFindIdent(search & ~1,
                          (struct descriptor_r *)ident_ptr->dscptrs[0],
                          &key_dsc, &node_ptr, block_ptr_ptr);
-      else if (code == OpcPrivate)
+      else if (code == OPC_PRIVATE)
         status = TdiFindIdent(search & ~2,
                          (struct descriptor_r *)ident_ptr->dscptrs[0],
                          &key_dsc, &node_ptr, block_ptr_ptr);
-      else if (code == OpcEquals || code == OpcEqualsFirst
-               || code == OpcPostDec || code == OpcPreDec
-               || code == OpcPostInc || code == OpcPreInc) {
-        struct descriptor_xd tmp = EMPTY_XD;
+      else if (code == OPC_EQUALS || code == OPC_EQUALS_FIRST
+               || code == OPC_POST_DEC || code == OPC_PRE_DEC
+               || code == OPC_POST_INC || code == OPC_PRE_INC) {
+        INIT_AND_FREEXD_ON_EXIT(tmp);
         status = TdiEvaluate(ident_ptr, &tmp MDS_END_ARG);
         if STATUS_OK
           status = TdiFindIdent(search,
                            (struct descriptor_r *)ident_ptr->dscptrs[0],
 			   &key_dsc, &node_ptr, block_ptr_ptr);
-      } else if (code == OpcVar) {
+        FREEXD_NOW(tmp);
+      } else if (code == OPC_VAR) {
         name_dsc = EMPTY_D;
         status = TdiData(ident_ptr->dscptrs[0], &name_dsc MDS_END_ARG);
         if STATUS_OK
@@ -514,7 +511,7 @@ STATIC_ROUTINE int free_all(node_type ** pnode)
 /*--------------------------------------------------------------
         Release variables.
 */
-int Tdi1Deallocate(int opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Deallocate(opcode_t opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   GET_TDITHREADSTATIC_P;
@@ -529,7 +526,7 @@ int Tdi1Deallocate(int opcode __attribute__ ((unused)), int narg, struct descrip
 /*--------------------------------------------------------------
         Check for allocated variable, private only by default.
 */
-int Tdi1Allocated(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Allocated(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   struct descriptor key_dsc = EMPTDY_S;
@@ -554,7 +551,7 @@ int Tdi1Allocated(int opcode __attribute__ ((unused)), int narg __attribute__ ((
 /*--------------------------------------------------------------
         Check for argument present.
 */
-int Tdi1Present(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Present(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   struct descriptor key_dsc = EMPTDY_S;
@@ -624,11 +621,11 @@ int compile_fun(struct descriptor *entry)
     struct descriptor_function *pfun = (struct descriptor_function *)tmp.pointer;
     if (pfun->dtype == DTYPE_FUNCTION) {
       unsigned short code = *(unsigned short *)pfun->pointer;
-      if (code == OpcFun) {
+      if (code == OPC_FUN) {
 	struct descriptor_function *pfun2 = (struct descriptor_function *)pfun->arguments[0];
 	if (pfun2->dtype == DTYPE_FUNCTION) {
 	  code = *(unsigned short *)pfun2->pointer;
-	  if (code == OpcPrivate || code == OpcPublic)
+	  if (code == OPC_PRIVATE || code == OPC_PUBLIC)
 	    pfun2 = (struct descriptor_function *)pfun2->arguments[0];
 	}
 	StrUpcase((struct descriptor *)pfun2, (struct descriptor *)pfun2);
@@ -642,7 +639,8 @@ int compile_fun(struct descriptor *entry)
 }
 
 extern char* findModule();
-extern int TdiExtPython2();
+extern int loadPyFunction(char*dirspec,char*filename);
+extern int callPyFunction(char*filename,int nargs,struct descriptor_r **args,struct descriptor_xd *out_ptr);
 int TdiDoFun(struct descriptor *ident_ptr,
 	     int nactual, struct descriptor_r *actual_arg_ptr[], struct descriptor_xd *out_ptr)
 {
@@ -651,43 +649,52 @@ int TdiDoFun(struct descriptor *ident_ptr,
         Get name of function to do. Check its type.
         ******************************************/
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-  int status, ispython;
-  char *filename = NULL, *dirspec = NULL;
-  FREE_ON_EXIT(filename);
-  FREE_ON_EXIT(dirspec);
+  int status;
   // look up method: check cached, check python, or load
   pthread_mutex_lock(&lock);
   pthread_cleanup_push((void*)pthread_mutex_unlock,&lock);
-  ispython = B_FALSE;
   status = TdiFindIdent(7, (struct descriptor_r *)ident_ptr, 0, &node_ptr, 0);
   if (status==TdiUNKNOWN_VAR) {
+    char *filename = NULL, *dirspec = NULL;
+    FREE_ON_EXIT(filename);
+    FREE_ON_EXIT(dirspec);
     // check if method is python
     dirspec = findModule(ident_ptr,&filename);
-    if (dirspec)
-      ispython = B_TRUE;
-    else { // not a python method, load tdi fun
+    if (dirspec) {
+      status = loadPyFunction(dirspec,filename);
+      if STATUS_OK {
+        struct descriptor function = {(short)strlen(filename),DTYPE_T,CLASS_S,filename};
+        struct descriptor_xd tmp = EMPTY_XD;
+        status = MdsCopyDxXd((struct descriptor *)&function, &tmp);
+        if STATUS_OK {
+          status = TdiPutIdent((struct descriptor_r *)ident_ptr, &tmp);
+          MdsFree1Dx(&tmp, NULL);
+        }
+      }
+      if STATUS_NOT_OK // unable to load python method try tdi alternative
+	status = compile_fun(ident_ptr);
+    } else // not a python method, load tdi fun
       status = compile_fun(ident_ptr);
-      if STATUS_OK
-        status = TdiFindIdent(7, (struct descriptor_r *)ident_ptr, 0, &node_ptr, 0);
-    }
+    FREE_NOW(dirspec);
+    FREE_NOW(filename);
+    if STATUS_OK status = TdiFindIdent(7, (struct descriptor_r *)ident_ptr, 0, &node_ptr, 0);
   }
   pthread_cleanup_pop(1);
-  // method is loaded or python at this point
-  if (ispython) // execute python method if special flag is set
-    status = TdiExtPython2(dirspec, filename, nactual, (struct descriptor **)actual_arg_ptr, out_ptr);
-  FREE_NOW(dirspec);
-  FREE_NOW(filename);
-  if (ispython || STATUS_NOT_OK)
-    return status;
+  if STATUS_NOT_OK return status;
   struct descriptor_r *formal_ptr = 0, *formal_arg_ptr, *actual_ptr;
+  if ((formal_ptr = (struct descriptor_r *)node_ptr->xd.pointer) == 0) return TdiUNKNOWN_VAR;
+  if (formal_ptr->dtype == DTYPE_T) {
+    char *funname = malloc(formal_ptr->length+1);
+    FREE_ON_EXIT(funname);
+    memcpy(funname,formal_ptr->pointer,formal_ptr->length);funname[formal_ptr->length]='\0';
+    status = callPyFunction(funname,nactual,actual_arg_ptr,out_ptr);
+    FREE_NOW(funname);
+    return status;
+  }
+  if (formal_ptr->dtype != DTYPE_FUNCTION || *(unsigned short *)formal_ptr->pointer != OPC_FUN) return TdiUNKNOWN_VAR;
   int code, opt, j, nformal = 0;
-  if ((formal_ptr = (struct descriptor_r *)node_ptr->xd.pointer) == 0
-     || formal_ptr->dtype != DTYPE_FUNCTION
-     || *(unsigned short *)formal_ptr->pointer != OpcFun)
-    return TdiUNKNOWN_VAR;
   if ((nformal = formal_ptr->ndesc - 2) < nactual)
     return TdiEXTRA_ARG;
-
   GET_TDITHREADSTATIC_P;
   struct descriptor_xd tmp = EMPTY_XD;
   node_type *old_head, *new_head = 0;
@@ -707,7 +714,7 @@ int TdiDoFun(struct descriptor *ident_ptr,
     }
     if (formal_arg_ptr->dtype == DTYPE_FUNCTION && formal_arg_ptr->ndesc == 1) {
       code = *(unsigned short *)formal_arg_ptr->pointer;
-      opt = (code == OpcOptional);
+      opt = (code == OPC_OPTIONAL);
       if (opt) {
 	formal_arg_ptr = (struct descriptor_r *)formal_arg_ptr->dscptrs[0];
 	if (formal_arg_ptr == 0) {
@@ -725,13 +732,13 @@ int TdiDoFun(struct descriptor *ident_ptr,
                 [OPTIONAL] AS_IS IN INOUT OUT only.
                 All other words are bad here.
                 ****************************/
-    if (code == OpcIn || code == OpcInOut || code == OpcOut) {
+    if (code == OPC_IN || code == OPC_INOUT || code == OPC_OUT) {
       formal_arg_ptr = (struct descriptor_r *)formal_arg_ptr->dscptrs[0];
       if (formal_arg_ptr->dtype != DTYPE_T) {
 	status = TdiINVDTYDSC;
 	break;
       }
-    } else if (code == OpcAsIs)
+    } else if (code == OPC_AS_IS)
       formal_arg_ptr = (struct descriptor_r *)formal_arg_ptr->dscptrs[0];
     else if (formal_arg_ptr->dtype != DTYPE_IDENT && (formal_arg_ptr->dtype != DTYPE_T || !opt)) {
       status = TdiINVDTYDSC;
@@ -744,14 +751,14 @@ int TdiDoFun(struct descriptor *ident_ptr,
     if (j >= nactual || (actual_ptr = actual_arg_ptr[j]) == 0) {
       if (!opt)
 	status = TdiMISS_ARG;
-    } else if (code == OpcOut) {
+    } else if (code == OPC_OUT) {
       old_head = _private.head;
       _private.head = new_head;
       status = TdiPutIdent(formal_arg_ptr, 0);
       new_head = _private.head;
       _private.head = old_head;
     } else {
-      if (code == OpcAsIs) {
+      if (code == OPC_AS_IS) {
 	status = MdsCopyDxXd((struct descriptor *)actual_ptr, &tmp);
       } else if (actual_ptr->dtype == DTYPE_IDENT) {
 	status = TdiGetIdent((struct descriptor *)actual_ptr, &tmp);
@@ -791,14 +798,14 @@ int TdiDoFun(struct descriptor *ident_ptr,
     formal_arg_ptr = (struct descriptor_r *)formal_ptr->dscptrs[j + 2];
     if (actual_arg_ptr[j]
 	&& formal_arg_ptr->dtype == DTYPE_FUNCTION && formal_arg_ptr->ndesc == 1) {
-      if ((code = *(unsigned short *)formal_arg_ptr->pointer) == OpcOptional) {
+      if ((code = *(unsigned short *)formal_arg_ptr->pointer) == OPC_OPTIONAL) {
 	formal_arg_ptr = (struct descriptor_r *)formal_arg_ptr->dscptrs[0];
 	if (formal_arg_ptr->dtype != DTYPE_FUNCTION || formal_arg_ptr->ndesc != 1)
 	  code = 0;
 	else
 	  code = *(unsigned short *)formal_arg_ptr->pointer;
       }
-      if (code == OpcInOut || code == OpcOut) {
+      if (code == OPC_INOUT || code == OPC_OUT) {
 	status =
 	    TdiFindIdent(7, (struct descriptor_r *)formal_arg_ptr->dscptrs[0], 0, &node_ptr, 0);
 				/**************************
@@ -823,7 +830,7 @@ int TdiDoFun(struct descriptor *ident_ptr,
 /***************************************************************
         Replace variable. Assumed called by INTRINSIC so that out_ptr is XD-DSC.
 */
-int Tdi1Equals(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Equals(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
 
@@ -841,7 +848,7 @@ int Tdi1Equals(int opcode __attribute__ ((unused)), int narg __attribute__ ((unu
 /*--------------------------------------------------------------
         Store in first argument of binary opertor.
 */
-int Tdi1EqualsFirst(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1EqualsFirst(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
 
@@ -855,7 +862,7 @@ int Tdi1EqualsFirst(int opcode __attribute__ ((unused)), int narg __attribute__ 
 /*--------------------------------------------------------------
         Decrement a variable before use.
 */
-int Tdi1PreDec(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1PreDec(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
 
@@ -868,7 +875,7 @@ int Tdi1PreDec(int opcode __attribute__ ((unused)), int narg __attribute__ ((unu
 /*--------------------------------------------------------------
         Increment a variable before use.
 */
-int Tdi1PreInc(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1PreInc(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
 
@@ -881,7 +888,7 @@ int Tdi1PreInc(int opcode __attribute__ ((unused)), int narg __attribute__ ((unu
 /*--------------------------------------------------------------
         Decrement a variable after use.
 */
-int Tdi1PostDec(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1PostDec(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   struct descriptor_xd tmp = EMPTY_XD;
@@ -898,7 +905,7 @@ int Tdi1PostDec(int opcode __attribute__ ((unused)), int narg __attribute__ ((un
 /*--------------------------------------------------------------
         Increment a variable after use.
 */
-int Tdi1PostInc(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1PostInc(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   struct descriptor_xd tmp = EMPTY_XD;
@@ -916,7 +923,7 @@ int Tdi1PostInc(int opcode __attribute__ ((unused)), int narg __attribute__ ((un
         PRIVATE and PUBLIC must have text argument, not expression.
         They are keywords, not standard functions. NEED we change this?
 */
-int Tdi1Private(int opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Private(opcode_t opcode __attribute__ ((unused)), int narg __attribute__ ((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   GET_TDITHREADSTATIC_P;
@@ -933,7 +940,7 @@ int Tdi1Private(int opcode __attribute__ ((unused)), int narg __attribute__ ((un
         Find by identifier.
         PRIVATE and PUBLIC must have text argument, not expression.
 */
-int Tdi1Public(int opcode __attribute__ ((unused)), int narg __attribute__((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Public(opcode_t opcode __attribute__ ((unused)), int narg __attribute__((unused)), struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   int status;
   LOCK_PUBLIC_PUSH;
@@ -950,7 +957,7 @@ int Tdi1Public(int opcode __attribute__ ((unused)), int narg __attribute__((unus
 /*--------------------------------------------------------------
         Find by text expression.
 */
-int Tdi1Var(int opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Var(opcode_t opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   INIT_AND_FREEXD_ON_EXIT(tmp);
@@ -968,7 +975,7 @@ int Tdi1Var(int opcode __attribute__ ((unused)), int narg, struct descriptor *li
 /***************************************************************
         Define a function by reconstruction.
 */
-int Tdi1Fun(int opcode, int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
+int Tdi1Fun(opcode_t opcode, int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
 {
   INIT_STATUS;
   DESCRIPTOR_FUNCTION(hold, 0, 255);
@@ -1038,7 +1045,7 @@ STATIC_ROUTINE int show_one(node_type * node_ptr, user_type * user_ptr)
     if (rptr)
       status = TdiDecompile(rptr, &tmp MDS_END_ARG);
     if STATUS_OK {
-      if (rptr && rptr->dtype == DTYPE_FUNCTION && *(unsigned short *)rptr->pointer == OpcFun)
+      if (rptr && rptr->dtype == DTYPE_FUNCTION && *(unsigned short *)rptr->pointer == OPC_FUN)
 	printf("%.*s\n", tmp.length, tmp.pointer);
       else if (tmp.length > 0)
 	printf("%s %.*s\t= %.*s\n",
@@ -1060,16 +1067,16 @@ STATIC_ROUTINE int show_one(node_type * node_ptr, user_type * user_ptr)
 /*--------------------------------------------------------------
         Display private variables.
 */
-int Tdi1ShowPrivate(int opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr){
+int Tdi1ShowPrivate(opcode_t opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr){
   GET_TDITHREADSTATIC_P;
+  DBG("TdiShowPrivate: %"PRIxPTR"\n",(uintptr_t)(void*)_private.head);
   return wild((int (*)())show_one, narg, list, &_private, out_ptr);
 }
 
 /*--------------------------------------------------------------
         Display public variables.
 */
-int Tdi1ShowPublic(int opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr)
-{
+int Tdi1ShowPublic(opcode_t opcode __attribute__ ((unused)), int narg, struct descriptor *list[], struct descriptor_xd *out_ptr){
   int status;
   LOCK_PUBLIC_PUSH;
   status = wild((int (*)())show_one, narg, list, &_public, out_ptr);
@@ -1087,11 +1094,11 @@ extern EXPORT int TdiSaveContext(void *ptr[6]){
   ptr[4] = _public.head_zone;
   ptr[5] = _public.data_zone;
   UNLOCK_PUBLIC;
+  DBG("TdiSaveContext: %"PRIxPTR"\n",(uintptr_t)ptr[0]);
   return 1;
 }
 
-extern EXPORT int TdiDeleteContext(void *ptr[6])
-{
+extern EXPORT int TdiDeleteContext(void *ptr[6]){
   if (ptr[1])
     LibDeleteVmZone(&ptr[1]);
   if (ptr[2])
@@ -1112,6 +1119,7 @@ extern EXPORT int TdiDeleteContext(void *ptr[6])
 */
 extern EXPORT int TdiRestoreContext(void *ptr[6]){
   GET_TDITHREADSTATIC_P;
+  DBG("TdiRestoreContext: %"PRIxPTR"\n",(uintptr_t)ptr[0]);
   _private.head = (node_type *) ptr[0];
   _private.head_zone = ptr[1];
   _private.data_zone = ptr[2];

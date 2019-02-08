@@ -1919,12 +1919,14 @@ public class MdsDataProvider
 		if(default_node.trim().charAt(0) == '\\')
 		    descr = mds.MdsValue("TreeSetDefault(\"\\" + default_node + "\")");
 		else
-		    descr = mds.MdsValue("TreeSetDefault(\"\\" + default_node + "\")");
+		    descr = mds.MdsValue("TreeSetDefault(\"\\\\" + default_node + "\")");
  
                if ((descr.int_data[0] & 1 ) == 0)
-                    mds.MdsValue("TreeSetDefault(\"\\\\" + experiment + "::TOP\")");
+ //                   mds.MdsValue("TreeSetDefault(\"\\\\" + experiment + "::TOP\")");
+                    mds.MdsValue("TreeSetDefault(\"\\\\::TOP\")");
             } else
-                mds.MdsValue("TreeSetDefault(\"\\\\" + experiment + "::TOP\")");
+//                mds.MdsValue("TreeSetDefault(\"\\\\" + experiment + "::TOP\")");
+                mds.MdsValue("TreeSetDefault(\"\\\\::TOP\")");
 
             def_node_changed = false;
         }

@@ -24,6 +24,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #define _XOPEN_SOURCE_EXTENDED
 #define _GNU_SOURCE		/* glibc2 needs this */
+#define LOAD_INITIALIZESOCKETS
+#include <pthread_port.h>
+
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+#endif
+
 #include <mdsplus/mdsconfig.h>
 #include <sys/time.h>
 #include <time.h>
@@ -38,11 +50,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include <signal.h>
 
+//#define DEBUG
+#ifdef DEBUG
+# define DBG(...) fprintf(stderr,__VA_ARGS__)
+#else
+# define DBG(...) {/**/}
+#endif
+
 #ifdef _WIN32
 #include <windows.h>
 #include <process.h>
 #define setenv(name,value,overwrite) _putenv_s(name,value)
+#define unsetenv(name)               _putenv_s(name,"")
 #define localtime_r(time,tm)         localtime_s(tm,time)
+#define ctime_r(tm,buf)              ctime_s(buf,32,tm)
 #else
 #include <sys/wait.h>
 #endif
@@ -132,6 +153,12 @@ EXPORT int LibWait(const float *secs)
   return nanosleep(&ts, 0) == 0;
 }
 
+EXPORT char *Now32(char* buf){
+  time_t tim = time(0);
+  ctime_r(&tim,buf);
+  buf[strlen(buf) - 1] = '\0';
+  return buf;
+}
 ///
 /// Call a routine in a shared library passing zero or more arguments.
 ///
@@ -139,8 +166,8 @@ EXPORT int LibWait(const float *secs)
 /// \param routine address of the routine to call
 /// \return the value returned by the routine as a void *
 ///
-EXPORT void *LibCallg(void **arglist, void *(*routine) ())
-{
+EXPORT void *LibCallg(void **arglist, void *(*routine) ()) {
+  if (!routine) abort(); // intercept definite stack corruption
   switch (*(int*)&arglist[0] & 0xff) {
   case 0:
     return (*routine) ();
@@ -287,6 +314,36 @@ EXPORT void *LibCallg(void **arglist, void *(*routine) ())
   return 0;
 }
 
+EXPORT uint32_t LibGetHostAddr(char *name){
+  INITIALIZESOCKETS;
+  int addr = 0;
+#if defined(__MACH__) || defined(_WIN32)
+  struct hostent* hp = gethostbyname(name);
+  if (!hp) {
+    addr = inet_addr(name);
+    if (addr != -1)  hp = gethostbyaddr(((void *)&addr),sizeof(int),AF_INET);
+  }
+  if (hp) addr = *(int*)hp->h_addr_list[0];
+#else
+  size_t memlen;
+  struct hostent hostbuf, *hp = NULL;
+  int herr;
+  INIT_AND_FREE_ON_EXIT(void*,hp_mem);
+  for ( memlen=1024, hp_mem=malloc(memlen);
+	hp_mem && (gethostbyname_r(name,&hostbuf,hp_mem,memlen,&hp,&herr) == ERANGE);
+	memlen *= 2, hp_mem = realloc(hp_mem, memlen));
+  if (!hp) {
+    addr = (int)inet_addr(name);
+    if (addr != -1) for (;
+        hp_mem && (gethostbyaddr_r(((void*)&addr),sizeof(int),AF_INET,&hostbuf,hp_mem,memlen,&hp,&herr) == ERANGE);
+	memlen *= 2, hp_mem = realloc(hp_mem, memlen));
+  }
+  if (hp) addr = *(int*)hp->h_addr_list[0];
+  FREE_NOW(hp_mem);
+#endif
+  return addr == -1 ? 0 : (uint32_t)addr;
+}
+
 #ifdef _WIN32
 
 STATIC_ROUTINE char *GetRegistry(HKEY where, const char *pathname)
@@ -327,12 +384,12 @@ EXPORT int LibSpawn(struct descriptor *cmd, int waitFlag, int notifyFlag __attri
     }
   }
   arglist[numargs]=(void *)NULL;
-  status = (char *)LibCallg(arglist, (void *)_spawnlp) - (char *)NULL;
+  status = (int)(intptr_t)LibCallg(arglist, (void *)_spawnlp);
   free(cmd_c);
   return status;
 }
 
-#else				/* WIN32 */
+#else	/* _WIN32 */
 
 
 STATIC_ROUTINE char const *nonblank(char *p)
@@ -434,10 +491,6 @@ EXPORT char *TranslateLogical(char const *pathname)
   return NULL;
 }
 
-#ifndef va_count
-#define  va_count(narg) va_start(incrmtr, first); \
-                        for (narg=1; (narg < 256) && (va_arg(incrmtr, struct descriptor *) != MdsEND_ARG); narg++)
-#endif				/* va_count */
 
 EXPORT int TranslateLogicalXd(struct descriptor const *in, struct descriptor_xd *out)
 {
@@ -503,6 +556,13 @@ static void *loadLib(const char *dirspec, const char *filename, char *errorstr) 
 
 EXPORT int LibFindImageSymbol_C(const char *filename_in, const char *symbol, void **symbol_value)
 {
+  int status;
+  static pthread_mutex_t dlopen_mutex = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_lock(&dlopen_mutex);
+  pthread_cleanup_push((void*)pthread_mutex_unlock,(void*)&dlopen_mutex);
+ if (*symbol_value) // already loaded
+  status = 1;
+ else{
 #ifdef _WIN32
   const char *prefix="";
   const char delim = ';';
@@ -510,16 +570,10 @@ EXPORT int LibFindImageSymbol_C(const char *filename_in, const char *symbol, voi
   const char *prefix="lib";
   const char delim = ':';
 #endif
-  int status;
   void *handle = NULL;
   char *errorstr = alloca(4096);
-  char *filename;
-  static pthread_mutex_t dlopen_mutex = PTHREAD_MUTEX_INITIALIZER;
-  pthread_mutex_lock(&dlopen_mutex);
-  pthread_cleanup_push((void*)pthread_mutex_unlock,(void*)&dlopen_mutex);
-  filename = alloca(strlen(filename_in) + strlen(prefix) + strlen(SHARELIB_TYPE) + 1);
+  char *filename = alloca(strlen(filename_in) + strlen(prefix) + strlen(SHARELIB_TYPE) + 1);
   errorstr[0]='\0';
-  *symbol_value = NULL;
   strcpy(filename,filename_in);
   if ((!(strchr(filename,'/') || strchr(filename,'\\'))) &&
       (strlen(prefix) > 0) &&
@@ -573,6 +627,7 @@ EXPORT int LibFindImageSymbol_C(const char *filename_in, const char *symbol, voi
   }
   else
     status = 1;
+ }
   pthread_cleanup_pop(1);
   return status;
 }
@@ -581,6 +636,7 @@ EXPORT int LibFindImageSymbol(struct descriptor *filename, struct descriptor *sy
 {
   char *c_filename = MdsDescrToCstring(filename);
   char *c_symbol = MdsDescrToCstring(symbol);
+  *symbol_value = NULL; // maintain previous behaviour
   int status = LibFindImageSymbol_C(c_filename, c_symbol, symbol_value);
   free(c_filename);
   free(c_symbol);
@@ -591,35 +647,27 @@ EXPORT int LibFindImageSymbol(struct descriptor *filename, struct descriptor *sy
  *******************************************************/
 EXPORT int StrConcat(struct descriptor *out, struct descriptor *first, ...)
 {
-  int i;
-  int narg;
-  va_list incrmtr;
+  int i,nargs;
+  struct descriptor * arglist[256];
+  VA_LIST_MDS_END_ARG(arglist,nargs,0,0,first)
   int status = StrCopyDx(out, first);
   if STATUS_OK {
-    va_count(narg);
-    va_start(incrmtr, first);
     if (out->class == CLASS_D) {
-      struct descriptor *arg = va_arg(incrmtr, struct descriptor *);
-      for (i = 1; i < narg && STATUS_OK && arg; i++) {
-	StrAppend((struct descriptor_d *)out, arg);
-	arg = va_arg(incrmtr, struct descriptor *);
-      }
+      for (i = 0; STATUS_OK && i<nargs ; i++)
+	status = StrAppend((struct descriptor_d *)out, arglist[i]);
     } else if (out->class == CLASS_S) {
       struct descriptor temp = *out;
-      struct descriptor *next;
-      for (i = 1,
+      for (i = 0,
 	   temp.length = (unsigned short)(out->length - first->length),
 	   temp.pointer = out->pointer + first->length;
-	   i < narg && STATUS_OK && temp.length > 0;
-	   i++,
-	   temp.length = (unsigned short)(temp.length - next->length),
-	   temp.pointer += next->length) {
-	next = va_arg(incrmtr, struct descriptor *);
-	if (next) {
-	  StrCopyDx(&temp, next);
-	} else {
-	  temp.length = 0;
-	}
+	   i<nargs && STATUS_OK && temp.length > 0;
+	   temp.length = (unsigned short)(temp.length - arglist[i]->length),
+	   temp.pointer += arglist[i]->length,
+           i++) {
+	if (arglist[i])
+	  status = StrCopyDx(&temp, arglist[i]);
+	else
+	  break;
       }
     } else
       status = MDSplusERROR;
@@ -639,8 +687,7 @@ EXPORT int StrPosition(struct descriptor *source, struct descriptor *substring, 
   return answer;
 }
 
-EXPORT int StrCopyR(struct descriptor *dest, const unsigned short *len, char *source)
-{
+EXPORT int StrCopyR(struct descriptor *dest, const length_t *len, char *source){
   const struct descriptor s = { *len, DTYPE_T, CLASS_S, source };
   return StrCopyDx(dest, &s);
 }
@@ -660,7 +707,7 @@ EXPORT int StrLenExtr(struct descriptor *dest, struct descriptor *source, int *s
   return status;
 }
 
-EXPORT int StrGet1Dx(const unsigned short *len, struct descriptor_d *out)
+EXPORT int StrGet1Dx(const length_t *len, struct descriptor_d *out)
 {
   if (out->class != CLASS_D)
     return LibINVSTRDES;
@@ -682,8 +729,7 @@ EXPORT int StrGet1Dx(const unsigned short *len, struct descriptor_d *out)
 //  return 1;
 //}
 
-int LibSFree1Dd(struct descriptor_d *out)
-{
+int LibSFree1Dd(struct descriptor_d *out){
   return StrFree1Dx(out);
 }
 
@@ -722,8 +768,7 @@ EXPORT int StrCopyDx(struct descriptor *out, const struct descriptor *in)
   return MDSplusSUCCESS;
 }
 
-EXPORT int StrCompare(struct descriptor *str1, struct descriptor *str2)
-{
+EXPORT int StrCompare(struct descriptor *str1, struct descriptor *str2){
   char *str1c = MdsDescrToCstring(str1);
   char *str2c = MdsDescrToCstring(str2);
   int ans;
@@ -733,8 +778,7 @@ EXPORT int StrCompare(struct descriptor *str1, struct descriptor *str2)
   return ans;
 }
 
-EXPORT int StrUpcase(struct descriptor *out, struct descriptor *in)
-{
+EXPORT int StrUpcase(struct descriptor *out, struct descriptor *in){
   unsigned int outlength,i;
   StrCopyDx(out, in);
   outlength = (out->class == CLASS_A) ? ((struct descriptor_a *)out)->arsize : out->length;
@@ -910,8 +954,8 @@ EXPORT int LibConvertDateString(const char *asc_time, int64_t * qtime)
   }
   if (parse_it) {
     if (ctime_it) {
-      char *time_str;
-      time_str = ctime(&tim);
+      char time_str[32];
+      ctime_r(&tim,time_str);
       time_out[0] = time_str[8];
       time_out[1] = time_str[9];
       time_out[2] = '-';
@@ -1018,13 +1062,13 @@ EXPORT time_t LibCvtTim(int *time_in, double *t)
 
 EXPORT int LibSysAscTim(unsigned short *len, struct descriptor *str, int *time_in)
 {
-  char *time_str;
   char time_out[24];
   unsigned short slen = sizeof(time_out)-1;
   time_t bintim = LibCvtTim(time_in, 0);
   int64_t chunks = time_in ? *(int64_t *)time_in % 10000000 : 0;
-  time_str = ctime(&bintim);
-  if (time_str) {
+  char time_str[32];time_str[0]='\0';
+  ctime_r(&bintim,time_str);
+  if (strlen(time_str)>18) {
     time_out[0] = time_str[8];
     time_out[1] = time_str[9];
     time_out[2] = '-';
@@ -1574,9 +1618,9 @@ STATIC_ROUTINE int FindFileStart(struct descriptor *filespec, FindFileCtx ** ctx
   memset(*ctx, 0, sizeof(FindFileCtx));
   lctx = *ctx;
 
-  CSTRING_FROM_DESCRIPTOR(fspec, filespec)
+  CSTRING_FROM_DESCRIPTOR(fspec, filespec);
 
-      lctx->next_index = lctx->next_dir_index = 0;
+  lctx->next_index = lctx->next_dir_index = 0;
   colon = strchr(fspec, ':');
   if (colon == 0) {
     lctx->env = 0;
@@ -1657,13 +1701,12 @@ STATIC_ROUTINE char *_FindNextFile(FindFileCtx * ctx, int recursively, int caseB
     dp = readdir(ctx->dir_ptr);
     if (dp != NULL) {
       struct descriptor_d upname = { 0, DTYPE_T, CLASS_D, 0 };
-      DESCRIPTOR_FROM_CSTRING(filename, dp->d_name)
-	  if (caseBlind) {
-	    StrUpcase((struct descriptor *)&upname, &filename);
-      } else {
-	    StrCopyDx((struct descriptor *)&upname, &filename);
-      }
-      found = StrMatchWild((struct descriptor *)&upname, &ctx->wild_descr) & 1;
+      DESCRIPTOR_FROM_CSTRING(filename, dp->d_name);
+      if (caseBlind)
+	StrUpcase((struct descriptor *)&upname, &filename);
+      else
+	StrCopyDx((struct descriptor *)&upname, &filename);
+      found = IS_OK(StrMatchWild((struct descriptor *)&upname, &ctx->wild_descr));
       StrFree1Dx(&upname);
       if (recursively) {
 	if ((strcmp(dp->d_name, ".") != 0) && (strcmp(dp->d_name, "..") != 0)) {
@@ -1750,18 +1793,28 @@ unsigned short Crc(unsigned int len, unsigned char *bufptr)
   return (unsigned short)cword;
 }
 
-EXPORT int MdsPutEnv(char const *cmd)
-{
+
+EXPORT int MdsPutEnv(char const *cmd) {
+/* cmd		action
+ * name		unset name
+ * name=	set name to ""
+ * name=value   set name to value
+ */
   INIT_STATUS_ERROR;
   if (cmd != NULL) {
     if (!strstr(cmd, "MDSPLUS_SPAWN_WRAPPER") && !strstr(cmd, "MDSPLUS_LIBCALL_WRAPPER")){
-      char *tmp = strdup(cmd);
-      char *saveptr = NULL;
-      char *name = strtok_r(tmp,"=",&saveptr);
-      char *value = strtok_r(NULL,"=",&saveptr);
-      if (name != NULL && value != NULL)
-        status = setenv(name,value,1) ? MDSplusERROR : MDSplusSUCCESS;
-      free(tmp);
+      char *value, *name = strdup(cmd);
+      for (value=name ; *value && *value!='=' ; value++); // find =
+      if (*value) {
+	*(value++) = '\0';
+	DBG("setenv %s=%s\n",name,value);
+	status = setenv(name,value,1);
+      } else {
+	DBG("unsetenv %s\n",name);
+	status = unsetenv(name);
+      }
+      status = status ? MDSplusERROR : MDSplusSUCCESS;
+      free(name);
     }
   }
   return status;

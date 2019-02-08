@@ -11,10 +11,10 @@
 #define FindFileCtx void
 #endif
 
-
-#ifdef WINDOWS_H
-#include <stdint.h>
-#endif
+#include <inttypes.h>
+//#ifdef WINDOWS_H
+//#include <stdint.h>
+//#endif
 
 
 /// @{
@@ -30,7 +30,7 @@ extern int LibFindFileEnd(FindFileCtx **ctx);
 extern int LibFindFileRecurseCaseBlind(struct descriptor *filespec,
 				       struct descriptor *result, FindFileCtx **ctx);
 extern int LibFindImageSymbol();
-extern int LibFindImageSymbol_C(const char *filename, const char *symbol, void **symbol_value);
+extern int LibFindImageSymbol_C();
 extern char *LibFindImageSymbolErrString();
 extern int LibFreeVm(unsigned int *len, void **vm, ZoneList ** zone);
 extern int libfreevm_(unsigned int *len, void **vm, ZoneList ** zone);
@@ -50,6 +50,7 @@ extern int LibTraverseTree(LibTreeNode **treehead, int (*user_rtn) (), void *use
 extern int LibWait(const float *secs);
 extern int LibTimeToVMSTime(const time_t * time_in, int64_t * time_out);
 extern int libffs(int *position, int *size, char *base, int *find_position);
+extern uint32_t LibGetHostAddr(char *host);
 
 /// @}
 

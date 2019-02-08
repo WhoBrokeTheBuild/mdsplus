@@ -60,7 +60,7 @@ class Acq2106_423st(MDSplus.Device):
         {'path':':TRIG_MODE','type':'text', 'value': 'hard', 'options':('no_write_shot')},
         {'path':':EXT_CLOCK','type':'axis', 'options':('no_write_shot')},
         {'path':':FREQ','type':'numeric', 'value': 16000, 'options':('no_write_shot')},        
-        {'path':':DEF_DCIM','type':'numeric', 'value': 1, 'options':('no_write_shot')},
+        {'path':':DEF_DECIMATE','type':'numeric', 'value': 1, 'options':('no_write_shot')},
         {'path':':SEG_LENGTH','type':'numeric', 'value': 8000, 'options':('no_write_shot')},
         {'path':':MAX_SEGMENTS','type':'numeric', 'value': 1000, 'options':('no_write_shot')},
         {'path':':SEG_EVENT','type':'text', 'value': 'STREAM', 'options':('no_write_shot')},
@@ -95,7 +95,7 @@ class Acq2106_423st(MDSplus.Device):
         return ans
 
     def init(self):
-        import HtsDevices.acq400_hapi as acq400_hapi
+        acq400_hapi=self.importPyDeviceModule('acq400_hapi')
         uut = acq400_hapi.Acq400(self.node.data(), monitor=False)
         uut.s0.set_knob('set_abort', '1')
         if self.ext_clock.length > 0:
@@ -134,7 +134,7 @@ class Acq2106_423st(MDSplus.Device):
     STOP=stop
 
     def trig(self):
-        import HtsDevices.acq400_hapi as acq400_hapi
+        acq400_hapi=self.importPyDeviceModule('acq400_hapi')
         uut = acq400_hapi.Acq400(self.node.data(), monitor=False)
         uut.so.set_knob('soft_trigger','1')
         return 1
@@ -178,7 +178,7 @@ class Acq2106_423st(MDSplus.Device):
         if seg_length % decimator:
             seg_length = (seg_length // decimator + 1) * decimator
 
-        segment_bytes = seg_length*nchans*4
+        segment_bytes = seg_length*nchans*2
 
         dims=[]
         for i in range(nchans):
@@ -246,98 +246,7 @@ class Acq2106_423st(MDSplus.Device):
         chan=self.__getattr__('INPUT_%3.3d' % num)
         chan.setSegmentScale(MDSplus.ADD(MDSplus.MULTIPLY(chan.COEFFICIENT,MDSplus.dVALUE()),chan.OFFSET))
 
-class ACQ2106_423_1ST(Acq2106_423st):
-    """
-    D-Tacq ACQ2106  with 1 acq423 32 channel digitizers in streaming mode
-
-    """
-    from copy import copy
-    parts=copy(Acq2106_423st.carrier_parts)
-    sites=1
-    for i in range(sites*32):
-       parts.append({'path':':INPUT_%3.3d'%(i+1,),'type':'signal','options':('no_write_model','write_once',),
-                     'valueExpr':'head.setChanScale(%d)' %(i+1,)})
-       parts.append({'path':':INPUT_%3.3d:DECIMATE'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:COEFFICIENT'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:OFFSET'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-
-class ACQ2106_423_2ST(Acq2106_423st):
-    """
-    D-Tacq ACQ2106  with 2 acq423 32 channel digitizers in streaming mode
-
-    """
-    from copy import copy
-    parts=copy(Acq2106_423st.carrier_parts)
-    sites=2
-    for i in range(sites*32):
-       parts.append({'path':':INPUT_%3.3d'%(i+1,),'type':'signal','options':('no_write_model','write_once',),
-                     'valueExpr':'head.setChanScale(%d)' %(i+1,)})
-       parts.append({'path':':INPUT_%3.3d:DECIMATE'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:COEFFICIENT'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:OFFSET'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-
-
-class ACQ2106_423_3ST(Acq2106_423st):
-    """
-    D-Tacq ACQ2106  with 3 acq423 32 channel digitizers in streaming mode
-
-    """
-    from copy import copy
-    parts=copy(Acq2106_423st.carrier_parts)
-    sites=3
-    for i in range(sites*32):
-       parts.append({'path':':INPUT_%3.3d'%(i+1,),'type':'signal','options':('no_write_model','write_once',),
-                     'valueExpr':'head.setChanScale(%d)' %(i+1,)})
-       parts.append({'path':':INPUT_%3.3d:DECIMATE'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:COEFFICIENT'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:OFFSET'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-
-class ACQ2106_423_4ST(Acq2106_423st):
-    """
-    D-Tacq ACQ2106  with 4 acq423 32 channel digitizers in streaming mode
-
-    """
-    from copy import copy
-    parts=copy(Acq2106_423st.carrier_parts)
-    sites=4
-    for i in range(sites*32):
-       parts.append({'path':':INPUT_%3.3d'%(i+1,),'type':'signal','options':('no_write_model','write_once',),
-                     'valueExpr':'head.setChanScale(%d)' %(i+1,)})
-       parts.append({'path':':INPUT_%3.3d:DECIMATE'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:COEFFICIENT'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:OFFSET'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-
-class ACQ2106_423_5ST(Acq2106_423st):
-    """
-    D-Tacq ACQ2106  with 5 acq423 32 channel digitizers in streaming mode
-
-    """
-    from copy import copy
-    parts=copy(Acq2106_423st.carrier_parts)
-    sites=5
-    for i in range(sites*32):
-       parts.append({'path':':INPUT_%3.3d'%(i+1,),'type':'signal','options':('no_write_model','write_once',),
-                     'valueExpr':'head.setChanScale(%d)' %(i+1,)})
-       parts.append({'path':':INPUT_%3.3d:DECIMATE'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:COEFFICIENT'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:OFFSET'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-
-class ACQ2106_423_6ST(Acq2106_423st):
-    """
-    D-Tacq ACQ2106  with 6 acq423 32 channel digitizers in streaming mode
-
-    """
-    from copy import copy
-    parts=copy(Acq2106_423st.carrier_parts)
-    sites=6
-    for i in range(sites*32):
-       parts.append({'path':':INPUT_%3.3d'%(i+1,),'type':'signal','options':('no_write_model','write_once',),
-                     'valueExpr':'head.setChanScale(%d)' %(i+1,)})
-       parts.append({'path':':INPUT_%3.3d:DECIMATE'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:COEFFICIENT'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-       parts.append({'path':':INPUT_%3.3d:OFFSET'%(i+1,),'type':'NUMERIC', 'value':1, 'options':('no_write_shot')})
-
-def debugging(self):
+    def debugging(self):
         import os
         if self.debug == None:
             self.debug=os.getenv("DEBUG_DEVICES")

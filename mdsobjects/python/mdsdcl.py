@@ -37,12 +37,15 @@ _ver=_mimport('version')
 _exc=_mimport('mdsExceptions')
 _dsc=_mimport('descriptor')
 _tre=_mimport('tree')
-
-_mdsdcl=_ver.load_library('Mdsdcl')
-_mdsdcl_do_command_dsc=_mdsdcl.mdsdcl_do_command_dsc
-_mdsdcl_do_command_dsc.argtypes=[_C.c_char_p, _dsc.Descriptor_xd.PTR, _dsc.Descriptor_xd.PTR]
-
-def dcl(command,return_out=False,return_error=False,raise_exception=False,tree=None,setcommand='mdsdcl'):
+try:
+    _mdsdcl=_ver.load_library('Mdsdcl')
+    _mdsdcl. mdsdcl_do_command_dsc.argtypes=[            _C.c_char_p, _dsc.Descriptor_xd.PTR, _dsc.Descriptor_xd.PTR]
+    _mdsdcl._mdsdcl_do_command_dsc.argtypes=[_C.c_void_p,_C.c_char_p, _dsc.Descriptor_xd.PTR, _dsc.Descriptor_xd.PTR]
+except:
+ def dcl(*a,**kw):
+    raise _exc.LibNOTFOU("Mdsdcl")
+else:
+ def dcl(command,return_out=False,return_error=False,raise_exception=False,tree=None,setcommand='mdsdcl'):
     """Execute a dcl command
     @param command: command expression to execute
     @type command: str
@@ -60,12 +63,11 @@ def dcl(command,return_out=False,return_error=False,raise_exception=False,tree=N
     error_p=xd_error.ptr
     xd_output = _dsc.Descriptor_xd()
     out_p=xd_output.ptr
-    _exc.checkStatus(_mdsdcl_do_command_dsc(_ver.tobytes('set command %s'%(setcommand,)), error_p, out_p))
-    _tre._TreeCtx.pushTree(tree)
-    try:
-        status = _mdsdcl_do_command_dsc(_ver.tobytes(command), error_p, out_p)
-    finally:
-        _tre._TreeCtx.popTree()
+    _exc.checkStatus(_mdsdcl.mdsdcl_do_command_dsc(_ver.tobytes('set command %s'%(setcommand,)), error_p, out_p))
+    if isinstance(tree,_tre.Tree) and not tree.public:
+        status = _mdsdcl._mdsdcl_do_command_dsc(tree.pctx,_ver.tobytes(command), error_p, out_p)
+    else:
+        status = _mdsdcl.mdsdcl_do_command_dsc(_ver.tobytes(command), error_p, out_p)
     if (return_out or return_error) and raise_exception:
         if raise_exception: _exc.checkStatus(status)
     if return_out and return_error:

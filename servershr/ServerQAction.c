@@ -59,7 +59,7 @@ typedef struct _MonitorList {
 typedef struct _ClientList {
   uint32_t addr;
   uint16_t port;
-  int sock;
+  SOCKET sock;
   struct _ClientList *next;
 } ClientList;
 
@@ -67,7 +67,7 @@ extern int TdiDoTask();
 extern int TdiGetNci();
 extern int TdiExecute();
 extern int mdsdcl_do_command(char *command);
-extern int ServerBadSocket(int sock);
+extern int is_broken_socket(SOCKET sock);
 
 static int SendReply(SrvJob * job, int replyType, int status, int length, char *msg);
 
@@ -76,7 +76,6 @@ static int DoSrvAction(SrvJob * job_in);
 static int DoSrvClose(SrvJob * job_in);
 static int DoSrvCreatePulse(SrvJob * job_in);
 static void DoSrvMonitor(SrvJob * job_in);
-static char *Now();
 
 static void RemoveClient(SrvJob * job);
 extern uint32_t MdsGetClientAddr();
@@ -269,7 +268,8 @@ EXPORT int ServerQAction(uint32_t *addr, uint16_t *port, int *op, int *flags, in
     }
   case SrvStop:
     {
-      printf("%s, Server stop requested\n", Now());
+      char now[32];Now32(now);
+      printf("%s, Server stop requested\n", now);
       exit(0);
       break;
     }
@@ -304,7 +304,8 @@ static void LogPrefix(char *ans_c){
     char hname[512];
     char *port = MdsGetServerPortname();
     gethostname(hname, 512);
-    sprintf(ans_c, "%s, %s:%s, %s, ", Now(), hname, port ? port : "?",
+    char now[32];Now32(now);
+    sprintf(ans_c, "%s, %s:%s, %s, ", now, hname, port ? port : "?",
           Logging == 0 ? "logging disabled" : "logging enabled");
     if (Debug) {
       sprintf(ans_c + strlen(ans_c), "\nDebug info: QueueLocked = %d ProgLoc = %d WorkerDied = %d"
@@ -422,15 +423,6 @@ static inline void UnlockQueue(){
   QueueLocked = 0;
   _CONDITION_UNLOCK(&JobQueueCond);
 }
-// both
-static char *Now(){
-  static char now[64];
-  time_t tim;
-  tim = time(0);
-  strcpy(now, ctime(&tim));
-  now[strlen(now) - 1] = 0;
-  return now;
-}
 // main
 static int doingNid;
 static pthread_rwlock_t doing_nid_rwlock = PTHREAD_RWLOCK_INITIALIZER;
@@ -445,9 +437,12 @@ static int DoSrvAction(SrvJob * job_in){
   INIT_STATUS_ERROR;
   SrvActionJob *job = (SrvActionJob *) job_in;
   char *job_text, *old_job_text;
-  sprintf((job_text =
-	   (char *)malloc(100)), "Doing nid %d in %s shot %d", job->nid, job->tree, job->shot);
+  sprintf((job_text = (char*)malloc(100)), "Doing nid %d in %s shot %d", job->nid, job->tree, job->shot);
   current_job_text = job_text;
+  void* dbid = NULL;
+  status = _TreeNewDbid(&dbid);
+  if STATUS_NOT_OK goto end;
+  void *pc   = TreeCtxPush(&dbid);
   status = TreeOpen(job->tree, job->shot, 0);
   if STATUS_OK {
     int retstatus;
@@ -473,18 +468,23 @@ static int DoSrvAction(SrvJob * job_in){
     ans_dsc.pointer = (char *)&retstatus;
     TreeSetDefaultNid(0);
     if (Logging) {
-      printf("%s, %s\n", Now(), current_job_text);
+      char now[32];Now32(now);
+      printf("%s, %s\n", now, current_job_text);
       fflush(stdout);
     }
     status = TdiDoTask(&nid_dsc, &ans_dsc MDS_END_ARG);
     if (Logging) {
+      char now[32];Now32(now);
       memcpy(current_job_text, "Done ", 5);
-      printf("%s, %s\n", Now(), current_job_text);
+      printf("%s, %s\n", now, current_job_text);
       fflush(stdout);
     }
     if STATUS_OK
       status = retstatus;
   }
+  TreeCtxPop(pc);
+end: ;
+  TreeFreeDbid(dbid);
   if (job_in->h.addr)
     SendReply(job_in, SrvJobFINISHED, status, 0, 0);
   return status;
@@ -568,6 +568,7 @@ static void SendToMonitor(MonitorList *m, MonitorList *prev, SrvJob *job_in){
   status = TreeOpen(job->tree, job->shot, 0);
   if STATUS_NOT_OK // try to open model instead
       status = TreeOpen(job->tree, -1, 0);
+  char now[32];Now32(now);
   if STATUS_OK {
     niddsc.pointer = (char *)&job->nid;
     status = TdiGetNci(&niddsc, &fullpath_d, &fullpath MDS_END_ARG);
@@ -576,15 +577,15 @@ static void SendToMonitor(MonitorList *m, MonitorList *prev, SrvJob *job_in){
     if (job->server && *job->server)
       sprintf(msg, "%s %d %d %d %d %d %s %d %s %s; %s", job->tree, job->shot, job->phase,
 	      job->nid, job->on, job->mode, job->server,
-	      job->status, fullpath.pointer, Now(), status_text);
+	      job->status, fullpath.pointer, now, status_text);
     else
       sprintf(msg, "%s %d %d %d %d %d unknown %d %s %s; %s", job->tree, job->shot, job->phase,
-	      job->nid, job->on, job->mode, job->status, fullpath.pointer, Now(), status_text);
+	      job->nid, job->on, job->mode, job->status, fullpath.pointer, now, status_text);
     StrFree1Dx(&fullpath);
   } else {
     msg = malloc(1024 + strlen(status_text));
     sprintf(msg, "%s %d %d %d %d %d %s %d unknown %s; %s", job->tree, job->shot, job->phase,
-	    job->nid, job->on, job->mode, job->server, job->status, Now(), status_text);
+	    job->nid, job->on, job->mode, job->server, job->status, now, status_text);
   }
   status = SendReply(job_in, SrvJobFINISHED, 1, strlen(msg), msg);
   if (msg)
@@ -697,12 +698,12 @@ static void KillWorker(){
 
 // both
 static SOCKET AttachPort(uint32_t addr, uint16_t port){
-  int sock;
+  SOCKET sock;
   struct sockaddr_in sin;
   ClientList *l, *new;
   for (l = Clients; l; l = l->next)
     if (l->addr == addr && l->port == port) {
-      if (ServerBadSocket(l->sock)) {
+      if (is_broken_socket(l->sock)) {
 	SrvJob job;
 	job.h.addr = l->addr;
 	job.h.port = l->port;
@@ -715,7 +716,7 @@ static SOCKET AttachPort(uint32_t addr, uint16_t port){
   sin.sin_family = AF_INET;
   *(uint32_t *)(&sin.sin_addr) = addr;
   sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock >= 0) {
+  if (sock != INVALID_SOCKET) {
     if (connect(sock, (struct sockaddr *)&sin, sizeof(sin)) == -1) {
       shutdown(sock, 2);
       close(sock);
@@ -775,7 +776,8 @@ static int SendReply(SrvJob * job, int replyType, int status_in, int length, cha
     }
     if STATUS_NOT_OK {
       char* ip = (char*)&job->h.addr;
-      printf("%s: Dropped connection to %u.%u.%u.%u:%u\n", Now(), ip[0],ip[1],ip[2],ip[3], job->h.port);
+      char now[32];Now32(now);
+      printf("%s: Dropped connection to %u.%u.%u.%u:%u\n", now, ip[0],ip[1],ip[2],ip[3], job->h.port);
       RemoveClient(job);
     }
   }

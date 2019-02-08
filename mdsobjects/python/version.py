@@ -36,7 +36,8 @@ from sys import version_info as pyver
 import os
 ispy3 = pyver>(3,)
 ispy2 = pyver<(3,)
-isNt = os.name=='nt'
+iswin = os.sys.platform.startswith('win')
+isdarwin = os.sys.platform.startswith('darwin')
 npstr = npunicode if ispy3 else npbytes
 # __builtins__ is dict
 has_long      = 'long'       in __builtins__
@@ -56,27 +57,28 @@ else:
 
 def load_library(name):
     import ctypes as C
-    if os.sys.platform.startswith('darwin') and not os.getenv('DYLD_LIBRARY_PATH'):
+    if isdarwin and not os.getenv('DYLD_LIBRARY_PATH'):
         if os.getenv('MDSPLUS_DIR'):
             os.environ['DYLD_LIBRARY_PATH'] = os.path.join(os.getenv('MDSPLUS_DIR'),'lib')
         else:
             os.environ['DYLD_LIBRARY_PATH'] = '/usr/local/mdsplus/lib'
-    from ctypes.util import find_library
-    libnam = find_library(name)
-    if libnam is None:
-        if os.sys.platform.startswith('win'):
-            return C.CDLL('%s.dll'%name)
-        if os.sys.platform.startswith('darwin'):
+    try:
+        if iswin:
+            return C.CDLL(name)
+        if isdarwin:
             return C.CDLL('lib%s.dylib'%name)
-        try: return C.CDLL('lib%s.so'%name)
-        except:raise Exception("Could not find library: %s"%(name,))
-    else:
-        try:   return C.CDLL(libnam)
-        except:pass
-        try:   return C.CDLL(name)
-        except:pass
-        try:   return C.CDLL(os.path.basename(libnam))
-        except:raise Exception('Could not load library: %s'%(name,))
+        return C.CDLL('lib%s.so'%name)
+    except: pass
+    print("Issues loading %s, trying find_library"%name)
+    from ctypes.util import find_library
+    try:    libnam = find_library(name)
+    except: raise Exception("Could not find library: %s"%(name,))
+    if libnam is None:
+            raise Exception("Could not find library: %s"%(name,))
+    try:   return C.CDLL(libnam)
+    except:pass
+    try:   return C.CDLL(os.path.basename(libnam))
+    except:raise Exception('Could not load library: %s'%(name,))
 
 from types import GeneratorType as generator  # analysis:ignore
 
@@ -150,6 +152,11 @@ def _decode(string):
 
 def _encode(string):
     return string.encode('utf-8', 'backslashreplace')
+
+def hash64(bytes):
+    import hashlib
+    import numpy
+    return numpy.frombuffer(hashlib.md5(bytes.tostring()).digest(),numpy.uint64).sum()
 
 def _tostring(string, targ, nptarg, conv, lstres):
     if isinstance(string, targ):  # short cut

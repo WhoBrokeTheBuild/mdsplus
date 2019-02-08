@@ -40,13 +40,11 @@ _exc=_mimport('mdsExceptions')
 
 class Scalar(_dat.Data):
     _value = None
-    def _setTree(self,*a,**kw): return self;
-
     def __new__(cls,*value):
         if len(value)==0:
             return object.__new__(cls)
         value = value[0]
-        if isinstance(value,(_arr.Array,list,tuple,_ver.generator,_ver.mapclass,_ver.nparray)):
+        if isinstance(value,(_arr.Array,list,tuple,_ver.generator,_ver.mapclass,_ver.nparray,_ver.xrange)):
             key = cls.__name__+'Array'
             if key in _arr.__dict__:
                 cls = _arr.__dict__[key]
@@ -63,9 +61,9 @@ class Scalar(_dat.Data):
             cls = Uint8
         elif isinstance(value,(_N.generic,)):
             cls = globals()[value.__class__.__name__.capitalize()]
-        elif isinstance(value,(_C.c_double)):
+        elif isinstance(value,(_C.c_double,float)):
             cls = Float64
-        elif isinstance(value,(_C.c_float,float)):
+        elif isinstance(value,(_C.c_float)):
             cls = Float32
         elif isinstance(value,(int,)):
             cls = Int64 if _ver.bit_length(value)>31 else Int32

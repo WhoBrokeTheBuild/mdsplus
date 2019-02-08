@@ -35,6 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <treeshr.h>
 #include <treeshr_messages.h>
+#include <tdishr_messages.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ncidef.h>
@@ -156,7 +157,7 @@ int _TreeAddNode(void *dbid, char const *name, int *nid_out, char usage)
       If OK so far so grab a new node, Fill in the name
       and insert it into the list of brothers.
     *************************************************/
-      if (STATUS_OK) { 
+      if (STATUS_OK) {
 	status = TreeNewNode(dblist, &new_ptr, &parent);
 	if STATUS_OK {
 	  size_t i;
@@ -170,14 +171,14 @@ int _TreeAddNode(void *dbid, char const *name, int *nid_out, char usage)
 	  for (i = strlen(node_name); i < sizeof(new_ptr->name); i++)
 	    new_ptr->name[i] = ' ';
 	  new_ptr->child = 0;
-	  LoadShort(idx, &new_ptr->conglomerate_elt);
+	  loadint16(&new_ptr->conglomerate_elt, &idx);
 	  if (is_child || usage == TreeUSAGE_STRUCTURE
 	      || usage == TreeUSAGE_SUBTREE) {
 	    status = TreeInsertChild(parent, new_ptr, dblist->tree_info->header->sort_children);
 	    new_ptr->usage = usage == TreeUSAGE_SUBTREE ? TreeUSAGE_SUBTREE : TreeUSAGE_STRUCTURE;
 	  } else {
 	    status = TreeInsertMember(parent, new_ptr, dblist->tree_info->header->sort_members);
-	    new_ptr->usage = (unsigned char)(((usage <= TreeUSAGE_MAXIMUM) && (usage >= 0)) ? usage : TreeUSAGE_ANY);
+	    new_ptr->usage = (unsigned char)(((usage < TreeUSAGE_MAXIMUM) && (usage >= 0)) ? usage : TreeUSAGE_ANY);
 	  }
 	  *nid_out = node_to_nid(dblist, new_ptr, 0);
 	}
@@ -310,7 +311,7 @@ STATIC_ROUTINE int TreeNewNode(PINO_DATABASE * db_ptr, NODE ** node_ptrptr, NODE
   *************************************/
 
     if (node_ptr->parent) {
-      header_ptr->free += swapint((char *)&node_ptr->parent);
+      header_ptr->free += swapint32(&node_ptr->parent);
       (parent_of(0, node_ptr))->child = 0;
     } else
       header_ptr->free = -1;
@@ -464,8 +465,8 @@ int TreeExpandNodes(PINO_DATABASE * db_ptr, int num_fixup, NODE *** fixup_nodes)
     for (node_ptr = (NODE *) ((char *)info_ptr->node + header_ptr->free);
 	 node_ptr->parent; node_ptr = parent_of(0, node_ptr)) ;
     node_ptr->parent = node_offset((info_ptr->node + header_ptr->nodes), node_ptr);
-    tmp = -swapint((char *)&node_ptr->parent);
-    (info_ptr->node + header_ptr->nodes)->child = swapint((char *)&tmp);
+    tmp = -swapint32(&node_ptr->parent);
+    (info_ptr->node + header_ptr->nodes)->child = swapint32(&tmp);
   }
   header_ptr->nodes += EXTEND_NODES;
 end: ;
@@ -473,46 +474,103 @@ end: ;
   return status;
 }
 
-int _TreeAddConglom(void *dbid, char const *path, char const *congtype, int *nid)
-{
-  INIT_STATUS_AS TreeNORMAL, addstatus = TreeNORMAL;
-  PINO_DATABASE *dblist = (PINO_DATABASE *) dbid;
-  struct descriptor expdsc = { 0, DTYPE_T, CLASS_S, 0 };
-  char exp[256];
-  void *arglist[4] = { (void *)3 };
-  STATIC_CONSTANT DESCRIPTOR(tdishr, "TdiShr");
-  STATIC_CONSTANT DESCRIPTOR(tdiexecute, "TdiExecute");
-  DESCRIPTOR_LONG(statdsc, 0);
-  statdsc.pointer = (char *)&addstatus;
-  if (!IS_OPEN_FOR_EDIT(dblist))
-    return TreeNOEDIT;
-  if (path[0] == '\\')
-    sprintf(exp, "DevAddDevice('\\%s', '%s')", path, congtype);
-  else
-    sprintf(exp, "DevAddDevice('%s', '%s')", path, congtype);
-  static int (*addr) () = NULL;
-  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-  pthread_mutex_lock(&lock);
-  if (!addr) status = LibFindImageSymbol(&tdishr, &tdiexecute, &addr);
-  pthread_mutex_unlock(&lock);
-  if STATUS_OK {
-    expdsc.length = (unsigned short)strlen(exp);
-    expdsc.pointer = exp;
-    arglist[1] = &expdsc;
-    arglist[2] = &statdsc;
-    arglist[3] = MdsEND_ARG;
-    // switch to privateContext for thread safety
-    int old_pc = TreeUsePrivateCtx(1);
-    void* old_dbid = *TreeCtx();*TreeCtx() = dbid;
-    status = (int)((char *)LibCallg(arglist, addr) - (char *)0);
-    *TreeCtx() = old_dbid;TreeUsePrivateCtx(old_pc);
-    // old context restored
+typedef struct {void* xd;char *rtn, *model, *image;} get_add_rtn_t;
+static void get_add_rtn_c(void* in){
+  get_add_rtn_t* c = (get_add_rtn_t*)in;
+  free_xd(c->xd);
+  free_if(&c->rtn);
+  free_if(&c->model);
+  free_if(&c->image);
+}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wclobbered"
+// fc21 claims that '__cancel_routine' is clobbered pthread_cleanup_push(get_add_rtn_c,(void*)&c);
+static inline int get_add_rtn(char const *congtype, int (**add)()){
+  static int (*TdiExecute) () = NULL;
+  int status = LibFindImageSymbol_C("TdiShr", "TdiExecute", &TdiExecute);
+  if STATUS_NOT_OK return status;
+  // find image name by MdsDevices() array
+  char exp[] = "MdsDevices()";
+  struct descriptor expdsc  = { strlen(exp), DTYPE_T, CLASS_S, (char*)exp };
+  EMPTYXD(xd);
+  status = TdiExecute(&expdsc,&xd MDS_END_ARG);
+  if STATUS_NOT_OK return status;
+  get_add_rtn_t c = {&xd,NULL,NULL,NULL};
+  uint32_t j,i = (uint32_t)strlen(congtype);
+  c.rtn   = malloc(i+6);
+  c.model = malloc(i+1);
+  for (i=0; congtype[i] && congtype[i]!=' ' ; i++) {
+    c.rtn[i] = congtype[i];
+    c.model[i] = toupper(congtype[i]);
+  }
+  pthread_cleanup_push(get_add_rtn_c,(void*)&c);
+  struct descriptor_a *list = (struct descriptor_a*)xd.pointer;
+  strcpy(&c.rtn[i],"__add");
+  c.model[i] = '\0';
+  char* tmp;
+  for (i=0 ; i < list->arsize ; i+=2*list->length) {
+    tmp = &list->pointer[i];
+    for (j=0 ; j< list->length && c.model[j]==toupper(tmp[j]) ; j++);
+    if (j==list->length || (c.model[j]=='\0' && tmp[j]==' ')) break;
+  }
+  if (i< list->arsize) {
+    c.image = malloc(list->length+1);
+    tmp = &list->pointer[i+list->length];
+    for (i=0 ; i< list->length && tmp[i]!=' ' ; i++)
+      c.image[i] = tmp[i];
+    c.image[i] = '\0';
+    status = LibFindImageSymbol_C(c.image, c.rtn, add);
+  } else status = LibKEYNOTFOU;
+  pthread_cleanup_pop(1);
+  return status;
+}
+#pragma GCC diagnostic pop
+int _TreeAddConglom(void *dbid, char const *path, char const *congtype, int *nid){
+  if (!IS_OPEN_FOR_EDIT(((PINO_DATABASE *)dbid))) return TreeNOEDIT;
+  static int (*_TdiExecute) () = NULL;
+  int status = LibFindImageSymbol_C("TdiShr", "_TdiExecute", &_TdiExecute);
+  if STATUS_NOT_OK return status;
+  struct descriptor pathdsc = { strlen(path),     DTYPE_T, CLASS_S, (char*)path     };
+  struct descriptor typedsc = { strlen(congtype), DTYPE_T, CLASS_S, (char*)congtype };
+  /*try tdi device*/{
+    int addstatus = TreeNORMAL;
+    DESCRIPTOR_LONG(statdsc, (char *)&addstatus);
+    INIT_AS_AND_FREE_ON_EXIT(char*,exp,malloc(strlen(congtype)+11));
+    sprintf(exp,"%s__add($,$)",congtype);
+    struct descriptor expdsc  = { strlen(exp),      DTYPE_T, CLASS_S, (char*)exp      };
+    status = _TdiExecute(&dbid,&expdsc,&pathdsc,&typedsc,&statdsc MDS_END_ARG);
     if STATUS_OK {
       status = addstatus;
       if STATUS_OK
 	status = _TreeFindNode(dbid, path, nid);
     }
+    FREE_NOW(exp);
   }
+  if (status!=TdiUNKNOWN_VAR) goto end;
+  /*try shared device*/{
+    int (*add) () = NULL;
+    status = get_add_rtn(congtype,&add);
+    if STATUS_OK {
+      CTX_PUSH(&dbid);
+      status = add(&pathdsc,&typedsc,nid);
+      CTX_POP(&dbid);
+    }
+  }
+  if (status != LibKEYNOTFOU) goto end;
+  /*try python device*/{
+    char exp[] = "__n=-1;[DevAddPythonDevice($,$,__n),__n]";
+    struct descriptor expdsc  = { strlen(exp),      DTYPE_T, CLASS_S, (char*)exp      };
+    INIT_AND_FREEXD_ON_EXIT(xd);
+    status = _TdiExecute(&dbid,&expdsc,&pathdsc,&typedsc,&xd MDS_END_ARG);
+    if STATUS_OK {
+      int* arr = (int*)xd.pointer->pointer;
+      status = arr[0];
+      if STATUS_OK
+	*nid = arr[1];
+    }
+    FREEXD_NOW(xd);
+  }
+end: ;
   return status;
 }
 
@@ -626,10 +684,10 @@ STATIC_ROUTINE void trim_excess_nodes(TREE_INFO * info_ptr);
 STATIC_ROUTINE TREE_HEADER *HeaderOut(TREE_HEADER * hdr) {
   TREE_HEADER *ans = (TREE_HEADER *) malloc(sizeof(TREE_HEADER));
   ((char *)ans)[1] = (char)((hdr->sort_children ? 1 : 0) | (hdr->sort_members ? 2 : 0));
-  ans->free = swapint((char *)&hdr->free);
-  ans->tags = swapint((char *)&hdr->tags);
-  ans->externals = swapint((char *)&hdr->externals);
-  ans->nodes = swapint((char *)&hdr->nodes);
+  ans->free = swapint32(&hdr->free);
+  ans->tags = swapint32(&hdr->tags);
+  ans->externals = swapint32(&hdr->externals);
+  ans->nodes = swapint32(&hdr->nodes);
   return ans;
 }
 
@@ -646,6 +704,7 @@ int64_t _TreeGetDatafileSize(void *dbid)
 {
   PINO_DATABASE *dblist = (PINO_DATABASE *) dbid;
   TREE_INFO *info = dblist->tree_info;
+  if (!info) return -1;
   if ((!info->data_file) || info->data_file->get == 0) {
     if IS_NOT_OK(TreeOpenDatafileR(info))
       return -1;
@@ -757,6 +816,7 @@ int _TreeWriteTree(void **dbid, char const *exp_ptr, int shotid)
                 MDS_IO_LOCK(info_ptr->channel, 1, 1, MDS_IO_LOCK_RD | MDS_IO_LOCK_NOWAIT, 0);
                 status = TreeNORMAL;
                 (*dblist)->modified = 0;
+		TreeCallHookFun("TreeHook","WriteTree",info_ptr->treenam, (*dblist)->shotid, NULL);
                 TreeCallHook(WriteTree, info_ptr, 0);
             } else {
                 (*dblist)->modified = 0;
@@ -788,7 +848,7 @@ STATIC_ROUTINE void trim_excess_nodes(TREE_INFO * info_ptr)
     for (node_ptr = &nodes_ptr[nodes]; (*free_ptr != -1) && (node_ptr <= last_node_ptr); node_ptr++) {
       if (node_ptr == (NODE *) ((char *)nodes_ptr + *free_ptr)) {
 	if (node_ptr->parent) {
-	  *free_ptr += swapint((char *)&node_ptr->parent);
+	  *free_ptr += swapint32(&node_ptr->parent);
 	  (parent_of(0, node_ptr))->child = 0;
 	} else
 	  *free_ptr = -1;
@@ -870,7 +930,7 @@ int _TreeSetSubtree(void *dbid, int nid)
 
   node_idx = (int)(node_ptr - dblist->tree_info->node);
   for (i = 0; i < dblist->tree_info->header->externals; i++) {
-    if (swapint((char *)&dblist->tree_info->external[i]) == node_idx) {
+    if (swapint32(&dblist->tree_info->external[i]) == node_idx) {
       if (node_ptr->usage != TreeUSAGE_SUBTREE) {
 	node_ptr->usage = TreeUSAGE_SUBTREE;
 	dblist->modified = 1;
@@ -906,7 +966,7 @@ int _TreeSetSubtree(void *dbid, int nid)
  and increment the number of externals.
 *****************************************************/
 
-  *(dblist->tree_info->external + numext - 1) = swapint((char *)&node_idx);
+  *(dblist->tree_info->external + numext - 1) = swapint32(&node_idx);
   dblist->tree_info->header->externals++;
   dblist->modified = 1;
 
@@ -939,7 +999,7 @@ int _TreeSetNoSubtree(void *dbid, int nid)
   node_ptr = nid_to_node(dblist, nid_ptr);
   node_idx = (int)(node_ptr - dblist->tree_info->node);
   for (ext_idx = 0; ext_idx < dblist->tree_info->header->externals; ext_idx++)
-    if (swapint((char *)&dblist->tree_info->external[ext_idx]) == node_idx)
+    if (swapint32(&dblist->tree_info->external[ext_idx]) == node_idx)
       break;
   if (ext_idx >= dblist->tree_info->header->externals)
     return TreeNORMAL;
@@ -951,7 +1011,7 @@ int _TreeSetNoSubtree(void *dbid, int nid)
 
   dblist->tree_info->header->externals--;
   for (i = ext_idx; i < dblist->tree_info->header->externals; i++)
-    *(dblist->tree_info->external + i) = swapint((char *)&dblist->tree_info->external[i + 1]);
+    *(dblist->tree_info->external + i) = swapint32(&dblist->tree_info->external[i + 1]);
   dblist->modified = 1;
 
 /*******************************

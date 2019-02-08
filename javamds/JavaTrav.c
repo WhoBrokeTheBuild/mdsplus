@@ -977,14 +977,14 @@ EXPORT int doAction(int nid)
   int method_nid, i;
   struct descriptor nid_d = { sizeof(int), DTYPE_NID, CLASS_S, 0 };
   struct descriptor retStatus_d = { sizeof(int), DTYPE_L, CLASS_S, (char *)&retStatus };
-  char type = DTYPE_L;
+  dtype_t type = DTYPE_L;
   DESCRIPTOR_CALL(call_d, 0, 253, 0, 0);
   struct descriptor_d *decArgs;
   char *currPtr;
   int argLen, numArgs;
 
   nid_d.pointer = (char *)&method_nid;
-  call_d.pointer = (unsigned char *)&type;
+  call_d.pointer = &type;
   status = TreeGetRecord(nid, &xd);
   if (!(status & 1))
     return status;
@@ -1016,8 +1016,9 @@ EXPORT int doAction(int nid)
     memcpy(command, xd1.pointer->pointer, xd1.pointer->length);
     command[xd1.pointer->length] = 0;
     MdsFree1Dx(&xd1, 0);
-    expression = malloc(strlen(command) + 20);
-    sprintf(expression, "spawn(\"%s\",,)", command);
+    size_t expr_len = strlen(command) + 20;
+    expression = malloc(expr_len);
+    snprintf(expression, expr_len, "spawn(\"%s\",,)", command);
     expr_d.length = strlen(expression);
     expr_d.pointer = expression;
     status = TdiCompile(&expr_d, &xd1 MDS_END_ARG);

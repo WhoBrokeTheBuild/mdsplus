@@ -27,6 +27,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pthread_port.h>
 #define MDSLIB_NO_PROTOS
 #include "mdslib.h"
+#include <stdint.h>
+#include <mdsshr.h>
+#include <strroutines.h>
 static int MdsCONNECTION = -1;
 #define NDESCRIP_CACHE 1024
 #ifndef _CLIENT_ONLY
@@ -39,7 +42,7 @@ extern int TdiExecute();
 extern int TdiCompile();
 extern int TdiData();
 extern int TdiCvt();
-extern int LibCallg();
+extern void* LibCallg();
 extern int TreeFindNode();
 extern int TreePutRecord();
 extern int TreeWait();
@@ -62,6 +65,15 @@ static void MdsValueSet(struct descriptor *outdsc, struct descriptor *indsc, int
 static pthread_key_t buffer_key;
 /* Free the thread-specific buffer */
 static void buffer_destroy(void *buf){
+  int i;
+  struct descriptor **d = (struct descriptor **)buf;
+  for (i=0 ; i<NDESCRIP_CACHE ; i++) {
+    if (d[i]) {
+      if      (d[i]->class == CLASS_XD) free_xd(d[i]);
+      else if (d[i]->class == CLASS_D ) free_d (d[i]);
+      free(d[i]);
+    }
+  }
   free(buf);
 }
 static void buffer_key_alloc(){
@@ -70,13 +82,12 @@ static void buffer_key_alloc(){
 /* Return the thread-specific buffer */
 static struct descriptor **GetDescriptorCache(){
   RUN_FUNCTION_ONCE(buffer_key_alloc);
-  struct descriptor **p = (struct descriptor **) pthread_getspecific(buffer_key);
-  if (!p) {
-    p = (struct descriptor **) memset(malloc(sizeof(struct descriptor *)*NDESCRIP_CACHE), \
-				      0, sizeof(struct descriptor *)*NDESCRIP_CACHE);
-    pthread_setspecific(buffer_key, (void *)p);
+  void *buf = pthread_getspecific(buffer_key);
+  if (!buf) {
+    buf = calloc(NDESCRIP_CACHE,sizeof(struct descriptor *));
+    pthread_setspecific(buffer_key, buf);
   }
-  return p;
+  return (struct descriptor **)buf;
 }
 
 extern EXPORT int descr(int *dtype, void *data, int *dim1, ...)
@@ -538,7 +549,7 @@ static inline int MdsValueVargs(va_list incrmtr, int connection, char *expressio
     arglist[argidx++] = (void *)&xd1;
     arglist[argidx++] = MdsEND_ARG;
     *(int *)&arglist[0] = argidx - 1;
-    status = LibCallg(arglist, TdiExecute);
+    status = (int)(intptr_t)LibCallg(arglist, TdiExecute);
 
     if (status & 1) {
 
@@ -766,7 +777,7 @@ static inline int MdsValue2Vargs(va_list incrmtr, int connection, char *expressi
     arglist[argidx++] = (void *)&xd1;
     arglist[argidx++] = MdsEND_ARG;
     *(int *)&arglist[0] = argidx - 1;
-    status = LibCallg(arglist, TdiExecute);
+    status = (int)(intptr_t)LibCallg(arglist, TdiExecute);
 
     if (status & 1) {
 
@@ -909,7 +920,7 @@ static inline int MdsPutVargs(va_list incrmtr, int connection, char *pathname, c
       arglist[argidx++] = MdsEND_ARG;
       *(int *)&arglist[0] = argidx - 1;
 
-      status = LibCallg(arglist, TdiCompile);
+      status = (int)(intptr_t)LibCallg(arglist, TdiCompile);
 
       if (status & 1) {
 	if ((status = TreePutRecord(nid, (struct descriptor *)arglist[argidx - 2], 0)) & 1) {
@@ -1035,7 +1046,7 @@ EXPORT int MdsPut2Vargs(va_list incrmtr, int connection, char *pathname, char *e
       arglist[argidx++] = MdsEND_ARG;
       *(int *)&arglist[0] = argidx - 1;
 
-      status = LibCallg(arglist, TdiCompile);
+      status = (int)(intptr_t)LibCallg(arglist, TdiCompile);
 
       if (status & 1) {
 	if ((status = TreePutRecord(nid, (struct descriptor *)arglist[argidx - 2]), 0) & 1) {
@@ -1124,9 +1135,10 @@ static int dtype_length(struct descriptor *d)
 }
 
 
-#if !defined(_CLIENT_ONLY)
-extern EXPORT int *cdescr(int dtype, void *data, ...)
-{
+#ifdef _CLIENT_ONLY
+extern EXPORT int *cdescr() {return NULL;}
+#else
+extern EXPORT int *cdescr(int dtype, void *data, ...) {
   void *arglist[MAXARGS];
   va_list incrmtr;
   int dsc;
@@ -1149,7 +1161,7 @@ extern EXPORT int *cdescr(int dtype, void *data, ...)
   }
   arglist[argidx++] = MdsEND_ARG;
   *(int *)&arglist[0] = argidx - 1;
-  status = LibCallg(arglist, descr);
+  status = (int)(intptr_t)LibCallg(arglist, descr);
   return (&status);
 }
 #endif
@@ -1161,6 +1173,7 @@ static struct descrip *MakeIpDescrip(struct descrip *arg, struct descriptor *dsc
   dtype = dsc->dtype;
 
   switch (dtype) {
+  default:break;
   case DTYPE_NATIVE_FLOAT:
     dtype = DTYPE_FLOAT;
     break;
@@ -1238,6 +1251,8 @@ static char *MdsValueRemoteExpression(char *expression, struct descriptor *dsc)
    */
 
   switch (DTYPE_NATIVE_FLOAT) {
+  default:
+  //  printf("Unknown DTYPE_NATIVE_FLOAT: %d.  Using FS_FLOAT.\n", DTYPE_NATIVE_FLOAT);
   case DTYPE_FS:
     native_float_str = "FS_FLOAT";
     native_complex_str = "FS_COMPLEX";
@@ -1246,14 +1261,11 @@ static char *MdsValueRemoteExpression(char *expression, struct descriptor *dsc)
     native_float_str = "F_FLOAT";
     native_complex_str = "F_COMPLEX";
     break;
-  default:
-    printf("Unknown DTYPE_NATIVE_FLOAT: %d.  Using FS_FLOAT.\n", DTYPE_NATIVE_FLOAT);
-    native_float_str = "FS_FLOAT";
-    native_complex_str = "FS_COMPLEX";
-    break;
   }
 
   switch (DTYPE_NATIVE_DOUBLE) {
+  default:
+  //  printf("Unknown DTYPE_NATIVE_DOUBLE: %d.  Using FT_FLOAT.\n", DTYPE_NATIVE_DOUBLE);
   case DTYPE_FT:
     native_double_str = "FT_FLOAT";
     native_double_complex_str = "FT_COMPLEX";
@@ -1266,18 +1278,13 @@ static char *MdsValueRemoteExpression(char *expression, struct descriptor *dsc)
     native_double_str = "G_FLOAT";
     native_double_complex_str = "G_COMPLEX";
     break;
-  default:
-    printf("Unknown DTYPE_NATIVE_DOUBLE: %d.  Using FT_FLOAT.\n", DTYPE_NATIVE_DOUBLE);
-    native_double_str = "FT_FLOAT";
-    native_double_complex_str = "FT_COMPLEX";
-    break;
   }
 
   /*  The DTYPE of the incoming descriptor will be one of the values in ipdesc.h.
    *  The switch clause below therefore does not need to support NATIVE_FLOAT etc.
    */
 
-  switch (dsc->dtype) {
+  switch ((int)dsc->dtype) {
   case DTYPE_UCHAR:
     strcpy(newexpression, "BYTE_UNSIGNED");
     break;

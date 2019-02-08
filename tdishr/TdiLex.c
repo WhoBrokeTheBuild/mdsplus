@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <STATICdef.h>
 #include "stdio.h"
 #include <treeshr_messages.h>
+#include "mdsdescrip.h"
 #define U(x) ((x)&0377)
 #define NLSTATE tdiyyprevious=YYNEWLINE
 #define BEGIN tdiyybgin = tdiyysvec + 1 +
@@ -130,7 +131,7 @@ extern "C" {
 #include <tdishr_messages.h>
 #include <treeshr.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 //#pragma warning (disable : 4013 4102 4035)	/* LEX produces code with no forward declarations of tdiyylook and tdiyyback. Also has unreferenced label tdiyyfussy. And two int functions: tdiyyoutput and tdiyyunput do not return a value. */
 #endif
 
@@ -144,29 +145,8 @@ extern "C" {
 extern int TdiConvert();
 extern struct marker *TdiYylvalPtr;
 
-extern unsigned short Opcdollar, OpcZero,
-    OpcAdd, OpcAnd, OpcConcat, OpcDivide, OpcEq,
-    OpcGe, OpcGt, OpcIand, OpcInot, OpcIor,
-    OpcLe, OpcLt, OpcMultiply, OpcNe, OpcNot, OpcOr,
-    OpcPower, OpcPreDec, OpcPreInc, OpcPromote, OpcDtypeRange,
-    OpcShiftLeft, OpcShiftRight, OpcSubtract;
-
-extern int
- LEX_ERROR, LEX_IDENT, LEX_VBL, LEX_TEXT, LEX_VALUE,
- LEX_IN, LEX_LAND, LEX_LEQ, LEX_LEQV, LEX_LGE, LEX_LOR, LEX_MUL,
- LEX_ADD, LEX_CONCAT, LEX_IAND, LEX_INC, LEX_IOR,
- LEX_POINT, LEX_POWER, LEX_PROMO, LEX_RANGE, LEX_SHIFT, LEX_BINEQ,
- LEX_LANDS, LEX_LEQS, LEX_LGES, LEX_LORS, LEX_MULS, LEX_UNARYS;
-
 #define _MOVC3(a,b,c) memcpy(c,b,a)
 STATIC_ROUTINE int TdiLexBinEq(int token);
-
-extern void TdiYyReset()
-{
-/*
-  tdiyy_reset();
-*/
-}
 
 extern int TdiHash();
 
@@ -348,7 +328,7 @@ STATIC_ROUTINE int TdiLexIdent(int len, unsigned char *str, struct marker *mark_
       if (str[j] < '0' || str[j] > '9')
 	break;
     if (j == 0) {
-      mark_ptr->builtin = Opcdollar;
+      mark_ptr->builtin = OPC_$;
       return (LEX_IDENT);
     }
   } else if (str[0] == '_')
@@ -718,31 +698,31 @@ STATIC_ROUTINE int TdiLexPunct(int len __attribute__ ((unused)),
   switch (c0) {
   case '!':
     if (c1 == '=') {
-      mark_ptr->builtin = OpcNe;
+      mark_ptr->builtin = OPC_NE;
       return TdiLexBinEq(LEX_LEQS);
     }
     break;
   case '&':
     if (c1 == '&') {
-      mark_ptr->builtin = OpcAnd;
+      mark_ptr->builtin = OPC_AND;
       return TdiLexBinEq(LEX_LANDS);
     }
     break;
   case '*':
     if (c1 == '*') {
-      mark_ptr->builtin = OpcPower;
+      mark_ptr->builtin = OPC_POWER;
       return TdiLexBinEq(LEX_POWER);
     }
     break;
   case '+':
     if (c1 == '+') {
-      mark_ptr->builtin = OpcPreInc;
+      mark_ptr->builtin = OPC_PRE_INC;
       return (LEX_INC);
     }
     break;
   case '-':
     if (c1 == '-') {
-      mark_ptr->builtin = OpcPreDec;
+      mark_ptr->builtin = OPC_PRE_DEC;
       return (LEX_INC);
     }
 /***
@@ -752,53 +732,53 @@ STATIC_ROUTINE int TdiLexPunct(int len __attribute__ ((unused)),
     break;
   case '.':
     if (c1 == '.') {
-      mark_ptr->builtin = OpcDtypeRange;
+      mark_ptr->builtin = OPC_DTYPE_RANGE;
       return (LEX_RANGE);
     }
     break;
   case '/':
     if (c1 == '/') {
-      mark_ptr->builtin = OpcConcat;
+      mark_ptr->builtin = OPC_CONCAT;
       return TdiLexBinEq(LEX_CONCAT);
     }
     break;
 /***                     else if (c1 == '*') return (TdiLexComment(len, str, mark_ptr) == 0) ? input() : 0; break; ***/
-/***                    if (c1 == '=') {mark_ptr->builtin = OpcNe;              return TdiLexBinEq      (LEX_LEQS);}*/
+/***                    if (c1 == '=') {mark_ptr->builtin = OPC_NE;             return TdiLexBinEq      (LEX_LEQS);}*/
 /***                    if (c1 == ')') {                                        return                  ']';} break;***/
 /***    case '(' :      if (c1 == '/') {                                        return                  '[';} break;***/
   case '<':
     if (c1 == '<') {
-      mark_ptr->builtin = OpcShiftLeft;
+      mark_ptr->builtin = OPC_SHIFT_LEFT;
       return TdiLexBinEq(LEX_SHIFT);
     }
     if (c1 == '=') {
-      mark_ptr->builtin = OpcLe;
+      mark_ptr->builtin = OPC_LE;
       return TdiLexBinEq(LEX_LGES);
     }
     if (c1 == '>') {
-      mark_ptr->builtin = OpcNe;
+      mark_ptr->builtin = OPC_NE;
       return TdiLexBinEq(LEX_LEQS);
     }
     break;
   case '=':
     if (c1 == '=') {
-      mark_ptr->builtin = OpcEq;
+      mark_ptr->builtin = OPC_EQ;
       return TdiLexBinEq(LEX_LEQS);
     }
     break;
   case '>':
     if (c1 == '=') {
-      mark_ptr->builtin = OpcGe;
+      mark_ptr->builtin = OPC_GE;
       return TdiLexBinEq(LEX_LGES);
     }
     if (c1 == '>') {
-      mark_ptr->builtin = OpcShiftRight;
+      mark_ptr->builtin = OPC_SHIFT_RIGHT;
       return TdiLexBinEq(LEX_SHIFT);
     }
     break;
   case '|':
     if (c1 == '|') {
-      mark_ptr->builtin = OpcOr;
+      mark_ptr->builtin = OPC_OR;
       return TdiLexBinEq(LEX_LORS);
     }
     break;
@@ -810,44 +790,44 @@ STATIC_ROUTINE int TdiLexPunct(int len __attribute__ ((unused)),
         ********************/
   switch (c0) {
   case '!':
-    mark_ptr->builtin = OpcNot;
+    mark_ptr->builtin = OPC_NOT;
     return (LEX_UNARYS);
-/****   case '%' :      mark_ptr->builtin = OpcMod;             return TdiLexBinEq      (LEX_MULS);****/
+/****   case '%' :      mark_ptr->builtin = OPC_MOD;             return TdiLexBinEq      (LEX_MULS);****/
   case '&':
-    mark_ptr->builtin = OpcIand;
+    mark_ptr->builtin = OPC_IAND;
     return TdiLexBinEq(LEX_IAND);
   case '*':
-    mark_ptr->builtin = OpcMultiply;
+    mark_ptr->builtin = OPC_MULTIPLY;
     return TdiLexBinEq('*');
   case '+':
-    mark_ptr->builtin = OpcAdd;
+    mark_ptr->builtin = OPC_ADD;
     return TdiLexBinEq(LEX_ADD);
   case '-':
-    mark_ptr->builtin = OpcSubtract;
+    mark_ptr->builtin = OPC_SUBTRACT;
     return TdiLexBinEq(LEX_ADD);
   case '/':
-    mark_ptr->builtin = OpcDivide;
+    mark_ptr->builtin = OPC_DIVIDE;
     return TdiLexBinEq(LEX_MULS);
   case ':':
-    mark_ptr->builtin = OpcDtypeRange;
+    mark_ptr->builtin = OPC_DTYPE_RANGE;
     return (LEX_RANGE);
   case '<':
-    mark_ptr->builtin = OpcLt;
+    mark_ptr->builtin = OPC_LT;
     return TdiLexBinEq(LEX_LGES);
   case '>':
-    mark_ptr->builtin = OpcGt;
+    mark_ptr->builtin = OPC_GT;
     return TdiLexBinEq(LEX_LGES);
   case '@':
-    mark_ptr->builtin = OpcPromote;
+    mark_ptr->builtin = OPC_PROMOTE;
     return (LEX_PROMO);
   case '^':
-    mark_ptr->builtin = OpcPower;
+    mark_ptr->builtin = OPC_POWER;
     return TdiLexBinEq(LEX_POWER);
   case '|':
-    mark_ptr->builtin = OpcIor;
+    mark_ptr->builtin = OPC_IOR;
     return TdiLexBinEq(LEX_IOR);
   case '~':
-    mark_ptr->builtin = OpcInot;
+    mark_ptr->builtin = OPC_INOT;
     return (LEX_UNARYS);
   }
   mark_ptr->builtin = -1;
