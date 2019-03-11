@@ -1,5 +1,5 @@
 FROM ubuntu:18.04
-MAINTAINER Stephen Lane-Walsh <slwalsh@psfc.mit.edu>
+LABEL maintainer="Stephen Lane-Walsh <slwalsh@psfc.mit.edu>"
 
 # Release channel flavor, 'stable' or 'alpha'
 ARG MDSPLUS_FLAVOR=stable
