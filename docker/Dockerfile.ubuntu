@@ -4,14 +4,16 @@ LABEL maintainer="Stephen Lane-Walsh <slwalsh@psfc.mit.edu>"
 # Release channel flavor, 'stable' or 'alpha'
 ARG MDSPLUS_FLAVOR=stable
 
-RUN  apt-get update && \
+RUN apt-get update && \
     apt-get install -y curl gnupg2 && \
     curl -fsSL http://www.mdsplus.org/dist/mdsplus.gpg.key | apt-key add - && \
     echo "deb http://www.mdsplus.org/dist/Ubuntu18/repo MDSplus ${MDSPLUS_FLAVOR}\n" > /etc/apt/sources.list.d/mdsplus.list && \
+    apt-get remove -y curl && \
     apt-get update && \
     (test "${MDSPLUS_FLAVOR} == alpha" && \
         apt-get install -y mdsplus-alpha mdsplus-alpha-kernel mdsplus-alpha-python || \
-        apt-get install -y mdsplus mdsplus-kernel mdsplus-python)
+        apt-get install -y mdsplus mdsplus-kernel mdsplus-python) && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/local/mdsplus/bin:${PATH}"
 ENV MDS_LIB_PS="/usr/local/mdsplus/lib/dwscope_setup.ps"

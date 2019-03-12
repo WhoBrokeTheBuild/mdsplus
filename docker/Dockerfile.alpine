@@ -1,0 +1,23 @@
+FROM alpine:3.9
+LABEL maintainer="Stephen Lane-Walsh <slwalsh@psfc.mit.edu>"
+
+# Release channel flavor, 'stable' or 'alpha'
+ARG MDSPLUS_FLAVOR=alpha
+
+RUN apk add --update wget py-numpy && \
+    wget -P /etc/apk/keys/ http://www.mdsplus.org/dist/mdsplus@mdsplus.org-589e05b6.rsa.pub && \
+    apk del wget && \
+    echo "http://www.mdsplus.org/dist/alpine/3.3/${MDSPLUS_FLAVOR}" >> /etc/apk/repositories && \
+    (test "${MDSPLUS_FLAVOR} == alpha" && \
+        apk add --update mdsplus-alpha || \
+        apk add --update mdsplus) && \
+        rm -rf /var/cache/apk/*
+
+ENV PATH="/usr/local/mdsplus/bin:${PATH}"
+ENV MDS_LIB_PS="/usr/local/mdsplus/lib/dwscope_setup.ps"
+ENV MDS_PYDEVICE_PATH="/usr/local/mdsplus/pydevices"
+ENV MDS_LOGS="/usr/local/cmod/logs"
+ENV MDSPLUS_DIR="/usr/local/mdsplus"
+ENV MDSIP_SERVER_LOGDIR="/usr/local/cmod/logs/mdsip_servers/"
+ENV MDSMSG_PATH="/usr/local/mdsplus/lib"
+ENV MDS_PATH="/usr/local/cmod/tdi;/usr/local/mdsplus/tdi"
