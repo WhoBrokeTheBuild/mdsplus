@@ -4,7 +4,6 @@ package mdsplus
 // #cgo LDFLAGS: -L ../../../lib -lTreeShr
 // #include <treeshr.h>
 // #include <stdlib.h>
-// #include <stdio.h>
 import "C"
 import (
 	"fmt"
@@ -16,10 +15,6 @@ type Tree struct {
 	dbid *unsafe.Pointer
 	tree *C.char
 	shot C.int
-}
-
-type TreeNode struct {
-	nid int32
 }
 
 func (n *TreeNode) String() string {
@@ -34,8 +29,8 @@ func (t *Tree) Open(tree string, shot int, flags int) int {
 	t.dbid = C.TreeCtx()
 	t.tree = C.CString(tree)
 	t.shot = C.int(shot)
-	ret := C._TreeOpen(t.dbid, t.tree, t.shot, C.int(flags))
-	return int(ret)
+	status := int(C._TreeOpen(t.dbid, t.tree, t.shot, C.int(flags)))
+	return status
 }
 
 func (t *Tree) Close() int {
@@ -61,7 +56,7 @@ func (t *Tree) IncrementCurrentShotId() (int, error) {
 	if err != nil {
 		return shot, err
 	}
-	return t.SetCurrentShotId(shot+1), nil
+	return t.SetCurrentShotId(shot + 1), nil
 }
 
 func (t *Tree) GetDatafileSize() int64 {
@@ -73,21 +68,24 @@ func (t *Tree) GetNode(name string) *TreeNode {
 	nid := C.int32_t(0)
 	C._TreeFindNode(*t.dbid, cname, &nid)
 	C.free(unsafe.Pointer(cname))
-	return &TreeNode{ int32(nid), }
+	return &TreeNode{
+		tree: t,
+		nid:  nid,
+	}
 }
 
 func TreeOpen(tree string, shot int, flags int) int {
 	cs := C.CString(tree)
-	ret := C.TreeOpen(cs, C.int(shot), C.int(flags))
+	status := int(C.TreeOpen(cs, C.int(shot), C.int(flags)))
 	C.free(unsafe.Pointer(cs))
-	return int(ret)
+	return status
 }
 
 func TreeClose(tree string, shot int) int {
 	cs := C.CString(tree)
-	ret := C.TreeClose(cs, C.int(shot))
+	status := int(C.TreeClose(cs, C.int(shot)))
 	C.free(unsafe.Pointer(cs))
-	return int(ret)
+	return status
 }
 
 func TreeSetCurrentShotId(tree string, shot int) int {
