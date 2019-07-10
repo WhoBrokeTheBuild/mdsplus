@@ -498,7 +498,7 @@ typedef struct tree_info {
   struct tree_info *next_info;	/* Pointer to next tree info block                  */
   int blockid;			/* Identifier indicating a valid tree info block    */
   char *treenam;		/* Tree name                                        */
-  int shot;			/* Shot number                                      */
+  long shot;			/* Shot number                                      */
   int vm_pages;			/* Number of pages and address of virtual memory    */
   void *vm_addr;		/*  allocated for mapping the tree file             */
   char *section_addr[2];	/* Beginning and ending addresses of mapped section */
@@ -551,7 +551,7 @@ typedef struct pino_database {
   NODE *default_node;		/* Pointer to current default node */
   char *experiment;		/* Pointer to experiment descriptor */
   char *main_treenam;		/* Pointer to name used for main tree */
-  int shotid;			/* Shot identification */
+  long shotid;			/* Shot identification */
   unsigned open:1;		/* Flag indication block has open tree */
   unsigned open_for_edit:1;	/* Flag indicating tree is open for edit */
   unsigned open_readonly:1;	/* Flag indicating tree open readonly */
@@ -838,5 +838,6 @@ extern int MDS_IO_REMOVE(char *filename);
 extern int MDS_IO_RENAME(char *oldname, char *newname);
 extern ssize_t MDS_IO_READ_X(int fd, off_t offset, void *buff, size_t count, int *deleted);
 extern int MDS_IO_OPEN_ONE(char* filepath_in,char* treename,int shot, tree_type_t type, int new, int edit_flag, char**fullpath, int*speclen, int *fd_out);
+extern int MDS_IO_OPEN_ONE_EX(char* filepath_in,char* treename,long shot, tree_type_t type, int new, int edit_flag, char**fullpath, int*speclen, int *fd_out);
 
 #endif

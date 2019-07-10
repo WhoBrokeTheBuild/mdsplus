@@ -133,16 +133,16 @@ static int OpenShotIdFile(char *experiment, int mode)
   return fd;
 }
 
-int TreeGetCurrentShotId(char const *experiment)
+long TreeGetCurrentShotIdEx(char const *experiment)
 {
-  int shot = 0;
+  long shot = 0;
   int status = TreeFAILURE;
   char exp[16]={0};
   char *path = TreePath(experiment,exp);
   size_t slen;
   if (path && ((slen = strlen(path)) > 2) && (path[slen - 1] == ':') && (path[slen - 2] == ':')) {
     path[slen - 2] = 0;
-    status = TreeGetCurrentShotIdRemote(exp, path, &shot);
+    status = TreeGetCurrentShotIdRemoteEx(exp, path, &shot);
   } else {
     int fd = OpenShotIdFile(exp, O_RDONLY);
     if (fd != -1) {
@@ -150,7 +150,7 @@ int TreeGetCurrentShotId(char const *experiment)
       MDS_IO_CLOSE(fd);
 #ifdef WORDS_BIGENDIAN
       if (status & 1) {
-	int lshot = shot;
+	long lshot = shot;
 	int i;
 	char *optr = (char *)&shot;
 	char *iptr = (char *)&lshot;
@@ -165,7 +165,11 @@ int TreeGetCurrentShotId(char const *experiment)
   return STATUS_OK ? shot : 0;
 }
 
-int TreeSetCurrentShotId(char const *experiment, int shot)
+int TreeGetCurrentShotId(char const *experiment)
+{
+  return TreeGetCurrentShotIdEx(experiment);
+}
+int TreeSetCurrentShotIdEx(char const *experiment, long shot)
 {
   int status = TreeFAILURE;
   char exp[16]={0};
@@ -173,11 +177,11 @@ int TreeSetCurrentShotId(char const *experiment, int shot)
   size_t slen;
   if (path && ((slen = strlen(path)) > 2) && (path[slen - 1] == ':') && (path[slen - 2] == ':')) {
     path[slen - 2] = 0;
-    status = TreeSetCurrentShotIdRemote(exp, path, shot);
+    status = TreeSetCurrentShotIdRemoteEx(exp, path, shot);
   } else {
     int fd = OpenShotIdFile(exp, O_WRONLY);
     if (fd != -1) {
-      int lshot = shot;
+      long lshot = shot;
 #ifdef WORDS_BIGENDIAN
       int i;
       char *optr = (char *)&lshot;
@@ -192,4 +196,9 @@ int TreeSetCurrentShotId(char const *experiment, int shot)
   if (path)
     free(path);
   return status;
+}
+
+int TreeSetCurrentShotId(char const *experiment, int shot)
+{
+  return TreeSetCurrentShotIdEx(experiment, shot);
 }

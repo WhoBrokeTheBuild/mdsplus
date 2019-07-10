@@ -174,10 +174,10 @@ static int remote_access_connect(char *server, int inc_count, void *dbid __attri
   for (host = host_list; host; host = host->next) {
     if (!strcmp(host->h.unique,unique)) {
       if (inc_count) {
-	host->h.connections++;
-	DBG("Connection %d> %d\n",host->h.conid,host->h.connections);
+        host->h.connections++;
+        DBG("Connection %d> %d\n",host->h.conid,host->h.connections);
       } else
-	DBG("Connection %d= %d\n",host->h.conid,host->h.connections);
+        DBG("Connection %d= %d\n",host->h.conid,host->h.connections);
       break;
     }
   }
@@ -291,7 +291,7 @@ inline static int tree_open(PINO_DATABASE * dblist, int conid, const char* treea
   int status;
   struct descrip ans = {0};
   char exp[256];
-  sprintf(exp, "TreeShr->TreeOpen(ref($),val(%d),val(0))", dblist->shotid);
+  sprintf(exp, "TreeShr->TreeOpen(ref($),val(%ld),val(0))", dblist->shotid);
   struct descrip tree = STR2DESCRIP(treearg);
   status = MdsValue(conid, exp, &tree, &ans, NULL);
   if (ans.ptr) {
@@ -317,21 +317,21 @@ int ConnectTreeRemote(PINO_DATABASE * dblist, char *tree, char *subtree_list, ch
       ***********************************************/
       for (info = dblist->tree_info; info && strcmp(tree, info->treenam); info = info->next_info) ;
       if (!info) {
-	info = malloc(sizeof(TREE_INFO) + sizeof(TREE_HEADER));
-	if (info) {
-	  memset(info, 0, sizeof(*info) + sizeof(TREE_HEADER));
-	  info->blockid = TreeBLOCKID;
-	  info->flush = (dblist->shotid == -1);
-	  info->header = (TREE_HEADER *) & info[1];
-	  info->treenam = strcpy(malloc(strlen(tree) + 1), tree);
-	  TreeCallHookFun("TreeHook","OpenTree",tree,dblist->shotid, NULL);
-	  TreeCallHook(OpenTree, info, 0);
-	  info->channel = conid;
-	  dblist->tree_info = info;
-	  dblist->remote = 1;
-	  status = TreeNORMAL;
-	} else
-	  status = TreeFILE_NOT_FOUND;
+        info = malloc(sizeof(TREE_INFO) + sizeof(TREE_HEADER));
+        if (info) {
+          memset(info, 0, sizeof(*info) + sizeof(TREE_HEADER));
+          info->blockid = TreeBLOCKID;
+          info->flush = (dblist->shotid == -1);
+          info->header = (TREE_HEADER *) & info[1];
+          info->treenam = strcpy(malloc(strlen(tree) + 1), tree);
+          TreeCallHookFun("TreeHook","OpenTree",tree,dblist->shotid, NULL);
+          TreeCallHook(OpenTree, info, 0);
+          info->channel = conid;
+          dblist->tree_info = info;
+          dblist->remote = 1;
+          status = TreeNORMAL;
+        } else
+          status = TreeFILE_NOT_FOUND;
       }
     } else
       remote_access_disconnect(conid, 0);
@@ -349,7 +349,7 @@ int CloseTreeRemote(PINO_DATABASE * dblist, int call_host __attribute__ ((unused
   struct descrip tree = STR2DESCRIP(dblist->experiment);
   int status;
   char exp[80];
-  sprintf(exp, "TreeShr->TreeClose(ref($),val(%d))", dblist->shotid);
+  sprintf(exp, "TreeShr->TreeClose(ref($),val(%ld))", dblist->shotid);
   status = MdsValue(dblist->tree_info->channel, exp, &tree, &ans, NULL);
   if (ans.ptr) {
     status = (ans.dtype == DTYPE_L) ? *(int *)ans.ptr : 0;
@@ -411,9 +411,9 @@ int LeadingBackslash(char const *path)
   for (i = 0; i < len; i++) {
     if ((path[i] != 32) && (path[i] != 9)) {
       if (path[i] == '\\')
-	return 1;
+        return 1;
       else
-	return 0;
+        return 0;
     }
   }
   return 0;
@@ -466,12 +466,12 @@ int FindNodeWildRemote(PINO_DATABASE * dblist, char const *patharg, int *nid_out
     status = MdsValue(dblist->tree_info->channel, exp, &path, &ans, NULL);
     if STATUS_OK {
       if (ans.ptr) {
-	ctx = malloc(sizeof(struct _FindNodeStruct));
-	ctx->nids = ctx->ptr = (int *)ans.ptr;
-	ctx->num = ans.dims[0];
-	*ctx_inout = (void *)ctx;
+        ctx = malloc(sizeof(struct _FindNodeStruct));
+        ctx->nids = ctx->ptr = (int *)ans.ptr;
+        ctx->num = ans.dims[0];
+        *ctx_inout = (void *)ctx;
       } else
-	status = TreeNNF;
+        status = TreeNNF;
     }
   }
   if STATUS_OK {
@@ -596,7 +596,7 @@ void FindTagEndRemote(void **ctx_inout)
       struct descrip ans = {0};
       MdsValue((*ctx)->conid, exp, &ans, NULL);
       if (ans.ptr)
-	MdsIpFree(ans.ptr);
+        MdsIpFree(ans.ptr);
     }
     free(*ctx);
     *ctx = NULL;
@@ -715,9 +715,9 @@ int GetNciRemote(PINO_DATABASE * dblist, int nid_in, struct nci_itm *nci_itm)
       break;
     case NciVERSION:
       if (*(int *)itm->pointer == 0)
-	continue;
+        continue;
       else
-	status = 0;
+        status = 0;
       break;
     default:
       status = TreeILLEGAL_ITEM;
@@ -728,20 +728,20 @@ int GetNciRemote(PINO_DATABASE * dblist, int nid_in, struct nci_itm *nci_itm)
       sprintf(exp, getnci_str, nid_in);
       status = MdsValue(dblist->tree_info->channel, exp, &ans, NULL);
       if STATUS_OK {
-	if (ans.ptr && ans.length) {
-	  int length = ans.length * (ans.ndims ? ans.dims[0] : 1);
-	  if (itm->return_length_address)
-	    *itm->return_length_address = length;
-	  if ((ans.dtype == DTYPE_T) && (itm->pointer == 0)) {
-	    itm->pointer = memcpy(malloc(length + 1), ans.ptr, length);
-	    ((char *)itm->pointer)[length] = '\0';
-	  } else {
-	    memcpy(itm->pointer, ans.ptr, min(itm->buffer_length, length));
+        if (ans.ptr && ans.length) {
+          int length = ans.length * (ans.ndims ? ans.dims[0] : 1);
+          if (itm->return_length_address)
+            *itm->return_length_address = length;
+          if ((ans.dtype == DTYPE_T) && (itm->pointer == 0)) {
+            itm->pointer = memcpy(malloc(length + 1), ans.ptr, length);
+            ((char *)itm->pointer)[length] = '\0';
+          } else {
+            memcpy(itm->pointer, ans.ptr, min(itm->buffer_length, length));
 /*            if (itm->buffer_length < length) status = TreeBUFFEROVF; */
-	  }
-	  free(ans.ptr);
-	} else
-	  status = 0;
+          }
+          free(ans.ptr);
+        } else
+          status = 0;
       }
     }
   }
@@ -890,19 +890,45 @@ int TreeTurnOffRemote(PINO_DATABASE * dblist, int nid)
   return status;
 }
 
-int TreeGetCurrentShotIdRemote(const char *treearg, char *path, int *shot)
+int TreeGetCurrentShotIdRemoteEx(const char *treearg, char *path, long *shot)
 {
   int status = TreeFAILURE;
   int channel = remote_access_connect(path, 0, 0);
   if (channel > 0) {
     struct descrip ans = {0};
     struct descrip tree = STR2DESCRIP(treearg);
-    status = MdsValue(channel, "TreeShr->TreeGetCurrentShotId(ref($))", &tree, &ans, NULL);
+    status = MdsValue(channel, "TreeShr->TreeGetCurrentShotIdEx(ref($))", &tree, &ans, NULL);
     if (ans.ptr) {
       if (ans.dtype == DTYPE_L)
-	*shot = *(int *)ans.ptr;
+        *shot = *(int *)ans.ptr;
       else
-	status = status & 1 ? TreeFAILURE : status;
+        status = status & 1 ? TreeFAILURE : status;
+      MdsIpFree(ans.ptr);
+    }
+  }
+  return status;
+}
+
+int TreeGetCurrentShotIdRemote(const char *treearg, char *path, int *shot)
+{
+  long tmp;
+  int status = TreeGetCurrentShotIdRemoteEx(treearg, path, &tmp);
+  *shot = tmp;
+  return status;
+}
+
+int TreeSetCurrentShotIdRemoteEx(const char *treearg, char *path, long shot)
+{
+  int status = 0;
+  int channel = remote_access_connect(path, 0, 0);
+  if (channel > 0) {
+    struct descrip ans = {0};
+    struct descrip tree = STR2DESCRIP(treearg);
+    char exp[64];
+    sprintf(exp, "TreeShr->TreeSetCurrentShotIdEx(ref($),val(%ld))", shot);
+    status = MdsValue(channel, exp, &tree, &ans, NULL);
+    if (ans.ptr) {
+      status = (ans.dtype == DTYPE_L) ? *(int *)ans.ptr : 0;
       MdsIpFree(ans.ptr);
     }
   }
@@ -911,20 +937,7 @@ int TreeGetCurrentShotIdRemote(const char *treearg, char *path, int *shot)
 
 int TreeSetCurrentShotIdRemote(const char *treearg, char *path, int shot)
 {
-  int status = 0;
-  int channel = remote_access_connect(path, 0, 0);
-  if (channel > 0) {
-    struct descrip ans = {0};
-    struct descrip tree = STR2DESCRIP(treearg);
-    char exp[64];
-    sprintf(exp, "TreeShr->TreeSetCurrentShotId(ref($),val(%d))", shot);
-    status = MdsValue(channel, exp, &tree, &ans, NULL);
-    if (ans.ptr) {
-      status = (ans.dtype == DTYPE_L) ? *(int *)ans.ptr : 0;
-      MdsIpFree(ans.ptr);
-    }
-  }
-  return status;
+  return TreeSetCurrentShotIdRemoteEx(treearg, path, shot);
 }
 
 
@@ -1187,7 +1200,7 @@ inline static off_t io_lseek_remote(int conid,int fd, off_t offset, int whence) 
   char *dout;
   int status = MdsIoRequest(conid, MDS_IO_LSEEK_K,sizeof(mdsio.lseek),&mdsio,NULL,&len,&dout,&msg);
   if (STATUS_OK)
-	 if(len==sizeof(int32_t)){	ret = (off_t)*(int32_t*)dout; fprintf(stderr, "Server return 4 byte offset. Please update MDSplus on server if possible.");}
+         if(len==sizeof(int32_t)){	ret = (off_t)*(int32_t*)dout; fprintf(stderr, "Server return 4 byte offset. Please update MDSplus on server if possible.");}
     else if(len==sizeof(int64_t))	ret = (off_t)*(int64_t*)dout;
     else				ret = -1;
   else					ret = -1;
@@ -1210,7 +1223,7 @@ inline static ssize_t io_write_remote(int conid, int fd, void *buff, size_t coun
   char *dout;
   int status =  MdsIoRequest(conid, MDS_IO_WRITE_K,sizeof(mdsio.write),&mdsio,buff,&len,&dout,&msg);
   if STATUS_OK {
-	 if(len==sizeof(int32_t))	ret = (ssize_t)*(int32_t*)dout;
+         if(len==sizeof(int32_t))	ret = (ssize_t)*(int32_t*)dout;
     else if(len==sizeof(int64_t))	ret = (ssize_t)*(int64_t*)dout;
     else				ret = 0;
   } else				ret = 0;
@@ -1369,7 +1382,7 @@ inline static int io_exists_remote(char *host, char *filename){
     char*dout;
     int status = MdsIoRequest(conid,MDS_IO_EXISTS_K,sizeof(mdsio.exists),&mdsio,filename,&len,&dout,&msg);
     if (STATUS_OK && len==sizeof(int))
-	 ret = *(int*)dout;
+         ret = *(int*)dout;
     else ret = 0;
   } else ret = 0;
   FREE_NOW(msg);
@@ -1403,7 +1416,7 @@ inline static int io_remove_remote(char *host, char *filename){
     char*dout;
     int status = MdsIoRequest(conid,MDS_IO_REMOVE_K,sizeof(mdsio.remove),&mdsio,filename,&len,&dout,&msg);
     if (STATUS_OK && len==sizeof(int))
-	 ret = *(int*)dout;
+         ret = *(int*)dout;
     else ret = -1;
   } else ret = -1;
   FREE_NOW(msg);
@@ -1437,7 +1450,7 @@ inline static int io_rename_remote(char *host, char *filename_old, char *filenam
     char*dout;
     int status = MdsIoRequest(conid,MDS_IO_RENAME_K,sizeof(mdsio.rename),&mdsio,names,&len,&dout,&msg);
     if (STATUS_OK && len==sizeof(int))
-	 ret = *(int*)dout;
+         ret = *(int*)dout;
     else ret = -1;
     FREE_NOW(msg);
     FREE_NOW(names);
@@ -1470,8 +1483,7 @@ EXPORT int MDS_IO_RENAME(char *filename_old, char *filename_new){
 /////////NEW OPEN ONE INTERFACE////////////////////////////////////
 ///////////////////////////////////////////////////////////////////
 
-
-inline static char* generate_fullpath(char* filepath,char* treename,int shot, tree_type_t type) {
+inline static char* generate_fullpath_ex(char* filepath,char* treename,long shot, tree_type_t type) {
   const char treeext[] = TREE_TREEFILE_EXT;
   const char nciext[]  = TREE_NCIFILE_EXT;
   const char dataext[] = TREE_DATAFILE_EXT;
@@ -1484,9 +1496,9 @@ inline static char* generate_fullpath(char* filepath,char* treename,int shot, tr
   }
   char name[40];
   if (shot > 999)
-    sprintf(name, "%s_%d", treename, shot);
+    sprintf(name, "%s_%ld", treename, shot);
   else if (shot > 0)
-    sprintf(name, "%s_%03d", treename, shot);
+    sprintf(name, "%s_%03ld", treename, shot);
   else// if (shot == -1)
     sprintf(name, "%s_model", treename);
   char* resnam = strcpy(malloc(2+strlen(filepath)+strlen(name)+strlen(ext)),filepath);
@@ -1500,6 +1512,10 @@ inline static char* generate_fullpath(char* filepath,char* treename,int shot, tr
   }
   strcat(resnam, ext);
   return resnam;
+}
+
+inline static char* generate_fullpath(char* filepath,char* treename,int shot, tree_type_t type) {
+  return generate_fullpath_ex(filepath, treename, shot, type);
 }
 
 inline static int io_open_one_request(int conid,size_t size,mdsio_t*mdsio,char*data,char*host,int *enhanced,char**fullpath,int *fd_out){
@@ -1583,8 +1599,10 @@ inline static int io_open_one_remote(char *host,char *filepath,char* treename,in
 }
 
 extern char* MaskReplace(char*,char*,int);
+extern char* MaskReplaceEx(char*,char*,long);
 #include <ctype.h>
-EXPORT int MDS_IO_OPEN_ONE(char* filepath_in,char* treename_in,int shot, tree_type_t type, int new, int edit, char**filespec, int*speclen, int *idx){
+
+EXPORT int MDS_IO_OPEN_ONE_EX(char* filepath_in,char* treename_in,long shot, tree_type_t type, int new, int edit, char**filespec, int*speclen, int *idx){
   int status;
   INIT_AND_FREE_ON_EXIT(char*,fullpath);
   status = TreeSUCCESS;
@@ -1604,7 +1622,7 @@ EXPORT int MDS_IO_OPEN_ONE(char* filepath_in,char* treename_in,int shot, tree_ty
     char* tmp = TreePath(treename_in, treename);
     if (tmp) {
       replaceBackslashes(tmp);
-      filepath = MaskReplace(tmp, treename, shot);
+      filepath = MaskReplaceEx(tmp, treename, shot);
       free(tmp);
     }
   }
@@ -1627,37 +1645,37 @@ EXPORT int MDS_IO_OPEN_ONE(char* filepath_in,char* treename_in,int shot, tree_ty
 	  enhanced = 0;
 	}
       } else {
-	fullpath = generate_fullpath(filepart, treename, shot, type);
-	int options,mode;
-	getOptionsMode(new,edit,&options,&mode);
-	fd = open(fullpath, options | O_BINARY | O_RANDOM, mode);
-	if (type == TREE_DIRECTORY) {
-	  if (fd != -1) {
-	    close(fd);
-	    fd = -3;
-	  }
-	} else {
+        fullpath = generate_fullpath_ex(filepart, treename, shot, type);
+        int options,mode;
+        getOptionsMode(new,edit,&options,&mode);
+        fd = open(fullpath, options | O_BINARY | O_RANDOM, mode);
+        if (type == TREE_DIRECTORY) {
+          if (fd != -1) {
+            close(fd);
+            fd = -3;
+          }
+        } else {
 #ifndef _WIN32
-	  if ((fd != -1) && new)
-	    set_mdsplus_file_protection(fullpath);
+          if ((fd != -1) && new)
+            set_mdsplus_file_protection(fullpath);
 #endif
-	  if ((fd != -1) && edit && (type == TREE_TREEFILE_TYPE)) {
-	    if IS_NOT_OK(io_lock_local((fdinfo_t){conid,fd,enhanced}, 1, 1, MDS_IO_LOCK_RD | MDS_IO_LOCK_NOWAIT, 0)) {
-	      status = TreeEDITTING;
-	      fd = -2;
-	    }
-	  }
-	}
+          if ((fd != -1) && edit && (type == TREE_TREEFILE_TYPE)) {
+            if IS_NOT_OK(io_lock_local((fdinfo_t){conid,fd,enhanced}, 1, 1, MDS_IO_LOCK_RD | MDS_IO_LOCK_NOWAIT, 0)) {
+              status = TreeEDITTING;
+              fd = -2;
+            }
+          }
+        }
       }
       free(tmp);
       if (fd != -1) {
-	if (speclen)
-	  *speclen = strlen(part);
-	if (filespec && fullpath) {
-	  *filespec = fullpath;
-	  fullpath = NULL;
-	}
-	break;
+        if (speclen)
+          *speclen = strlen(part);
+        if (filespec && fullpath) {
+          *filespec = fullpath;
+          fullpath = NULL;
+        }
+        break;
       }
       part = &filepath[i + 1];
     }
@@ -1666,4 +1684,7 @@ EXPORT int MDS_IO_OPEN_ONE(char* filepath_in,char* treename_in,int shot, tree_ty
   *idx = fd<0 ? fd : ADD_FD(fd, conid, enhanced);
   FREE_NOW(fullpath);
   return status;
+}
+EXPORT int MDS_IO_OPEN_ONE(char* filepath_in,char* treename_in,int shot, tree_type_t type, int new, int edit, char**filespec, int*speclen, int *idx){
+  return MDS_IO_OPEN_ONE_EX(filepath_in, treename_in, shot, type, new, edit, filespec, speclen, idx);
 }
