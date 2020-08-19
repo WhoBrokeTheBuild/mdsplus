@@ -5,15 +5,15 @@
 
 EXPORT
 const mds_version_t VERSIONCONST = {
-	@RELEASE_MAJOR@,
-	@RELEASE_MINOR@,
-	@RELEASE_RELEASE@,
-	"@RELEASE_BRANCH@",
+	@PROJECT_VERSION_MAJOR@,
+	@PROJECT_VERSION_MINOR@,
+	@PROJECT_VERSION_PATCH@,
+	"@PROJECT_BRANCH@",
 };
 
 
 static pthread_once_t once = PTHREAD_ONCE_INIT;
-static char tag[sizeof("@RELEASE_BRANCH@")+48];
+static char tag[sizeof("@PROJECT_BRANCH@")+48];
 static mdsdsc_t RELEASE_D = { 0, DTYPE_T, CLASS_S, tag };
 
 static void buildtag()
