@@ -38,16 +38,21 @@ ADD_LIBRARY(
     ${SOURCES}
 )
 
-TARGET_INCLUDE_DIRECTORIES(
-    TreeShr
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_BINARY_DIR}/include
-)
-
 SET_TARGET_PROPERTIES(
     TreeShr
     PROPERTIES
         PREFIX ""
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+    TreeShr
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+TARGET_LINK_LIBRARIES(
+    TreeShr
+    PUBLIC
+        MdsShr
 )

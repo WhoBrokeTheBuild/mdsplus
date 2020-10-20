@@ -32,23 +32,24 @@ ADD_LIBRARY(
     ${SOURCES}
 )
 
+SET_TARGET_PROPERTIES(
+    MdsShr
+    PROPERTIES
+        PREFIX ""
+)
+
+
 TARGET_LINK_LIBRARIES(
     MdsShr
-    PRIVATE
+    PUBLIC
         libxml2::libxml2
 )
 
 TARGET_INCLUDE_DIRECTORIES(
     MdsShr
-    PRIVATE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR}/include
-)
-
-SET_TARGET_PROPERTIES(
-    MdsShr
-    PROPERTIES
-        PREFIX ""
 )

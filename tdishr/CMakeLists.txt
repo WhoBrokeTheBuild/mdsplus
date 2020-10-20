@@ -1,0 +1,108 @@
+
+SET(SOURCES
+    CvtConvertFloat.c
+    DummyRoutines.c
+    IsRoprand.c
+    TdiAbs.c
+    TdiAdd.c
+    TdiAnd.c
+    TdiApd.c
+    TdiArray.c
+    TdiBinary.c
+    TdiBound.c
+    TdiBuild.c
+    TdiCall.c
+    TdiChar.c
+    TdiCompileDependency.c
+    TdiCompile.c
+    TdiConstant.c
+    TdiConvert.c
+    TdiCull.c
+    TdiCvtArgs.c
+    TdiCvtDxDx.c
+    TdiDecompileDependency.c
+    TdiDecompileR.c
+    TdiDecompile.c
+    TdiDecompress.c
+    TdiDefCat.c
+    TdiDefFunction.c
+    TdiDim.c
+    TdiDivide.c
+    TdiDoTask.c
+    TdiDtypeRange.c
+    TdiEq.c
+    TdiEvaluate.c
+    TdiExponent.c
+    TdiExpt.c
+    TdiExtFunction.c
+    TdiExtPython.c
+    TdiFaultHandler.c
+    TdiGetArgs.c
+    TdiGetData.c
+    TdiGetDbi.c
+    TdiGetNci.c
+    TdiGetShape.c
+    TdiGetSlope.c
+    TdiHash.c
+    TdiIand.c
+    TdiIntrinsic.c
+    TdiIo.c
+    TdiItoX.c
+    TdiLex.c
+    TdiMakeFunctionTable.c
+    TdiMasterData.c
+    TdiMath1.c
+    TdiMath2.c
+    TdiMatrix.c
+    TdiMaxVal.c
+    TdiMinMax.c
+    TdiOpcDef.c
+    TdiPack.c
+    TdiPower.c
+    TdiSame.c
+    TdiScalar.c
+    TdiSetRange.c
+    TdiShowVm.c
+    TdiSort.c
+    TdiSql.c
+    TdiSquare.c
+    TdiStatement.c
+    TdiSubscript.c
+    TdiThreadStatic.c
+    TdiTrans.c
+    TdiTrim.c
+    TdiUnary.c
+    TdiUndef.c
+    TdiVar.c
+    TdiVector.c
+    TdiXxxOf.c
+    TdiXxx.c
+    TdiYaccSubs.c
+    TdiYacc.c
+)
+
+ADD_LIBRARY(
+    TdiShr
+    SHARED
+    ${SOURCES}
+)
+
+SET_TARGET_PROPERTIES(
+    TdiShr
+    PROPERTIES
+        PREFIX ""
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+    TdiShr
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+TARGET_LINK_LIBRARIES(
+    TdiShr
+    PUBLIC
+        MdsShr
+        TreeShr
+)

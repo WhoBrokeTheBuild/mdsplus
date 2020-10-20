@@ -1,46 +1,43 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.10 FATAL_ERROR)
 
 # Allow for custom CMake modules
-LIST(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake)
+LIST(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 
-PROJECT(
-    MDSplus
-)
+PROJECT(MDSplus)
 
 INCLUDE(Version)
 
+#
 # Dependencies
+#
 
-FIND_PACKAGE(Python3 REQUIRED COMPONENTS Interpreter)
+FIND_PACKAGE(Python3 COMPONENTS Interpreter REQUIRED)
 FIND_PACKAGE(libxml2 REQUIRED)
-
-# Initial Configuration
+FIND_PACKAGE(Motif REQUIRED)
+FIND_PACKAGE(Readline REQUIRED)
+FIND_PACKAGE(Sybase)
 
 MESSAGE(STATUS "Running deploy/gen_messages.py")
-
 EXECUTE_PROCESS(
     COMMAND ${Python3_EXECUTABLE} deploy/gen_messages.py
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 MESSAGE(STATUS "Running deploy/gen_compound_opcbuiltins.py")
-
 EXECUTE_PROCESS(
     COMMAND ${Python3_EXECUTABLE} deploy/gen_compound_opcbuiltins.py
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 MESSAGE(STATUS "Running deploy/yylex.gen tdishr")
-
 EXECUTE_PROCESS(
-    COMMAND deploy/yylex.gen tdishr
+    COMMAND ./deploy/yylex.gen tdishr
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 MESSAGE(STATUS "deploy/yylex.gen tdishr")
-
 EXECUTE_PROCESS(
-    COMMAND deploy/yylex.gen tdishr
+    COMMAND ./deploy/yylex.gen mdsdcl
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
@@ -49,11 +46,23 @@ CONFIGURE_FILE(
     ${CMAKE_BINARY_DIR}/include/mdsplus/mdsconfig.h
 )
 
+#
 # Libraries
+#
 
 ADD_SUBDIRECTORY(mdsshr)
-
 ADD_SUBDIRECTORY(treeshr)
+ADD_SUBDIRECTORY(tdishr)
+ADD_SUBDIRECTORY(mdsdcl)
+ADD_SUBDIRECTORY(xmdsshr)
+# ADD_SUBDIRECTORY(mdstcpip)
+
+#
+# Executables
+#
+
+#ADD_SUBDIRECTORY(dwscope)
+ADD_SUBDIRECTORY(traverser)
 
 # Install
 

@@ -54,7 +54,7 @@ IF(libxml2_FOUND)
     SET_TARGET_PROPERTIES(
         libxml2::libxml2
         PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES ${libxml2_INCLUDE_DIR}
-            INTERFACE_LINK_LIBRARIES ${libxml2_LIBRARY}
+            INTERFACE_INCLUDE_DIRECTORIES "${libxml2_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "${libxml2_LIBRARY}"
     )
 ENDIF()
