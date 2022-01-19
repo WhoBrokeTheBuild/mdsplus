@@ -56,6 +56,7 @@ static int SpawnWorker(SOCKET sock)
   int status;
   STARTUPINFO startupinfo;
   PROCESS_INFORMATION pinfo;
+  WSAPROTOCOL_INFOA protocolInfo;
   char cmd[1024];
   SECURITY_ATTRIBUTES sc_atts;
   sc_atts.nLength = sizeof(sc_atts);
@@ -63,15 +64,32 @@ static int SpawnWorker(SOCKET sock)
   sc_atts.lpSecurityDescriptor = NULL;
   sprintf(cmd,
           "mdsip.exe --port=%s --hostfile=\"%s\" --compression=%d "
-          "--sockethandle=%d:%u",
-          GetPortname(), GetHostfile(), GetCompressionLevel(), _getpid(),
-          (unsigned int)sock);
+          "--sockethandle",
+          GetPortname(), GetHostfile(), GetCompressionLevel());
   memset(&startupinfo, 0, sizeof(startupinfo));
   startupinfo.cb = sizeof(startupinfo);
+
+  HANDLE hPipeWrite;
+  CreatePipe(NULL, &hPipeWrite, NULL, sizeof(protocolInfo));
+  startupinfo.hStdInput = hPipeWrite;
+
   status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, FALSE, 0, NULL, NULL,
                          &startupinfo, &pinfo);
   printf("CreateProcess returned %d with cmd=%s\n", status, cmd);
   fflush(stdout);
+
+  if (!WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo))
+  {
+    fprintf(stderr, "(WSA) Attempting to duplicate socket %d into pid %d\n",
+            (int)sock, pinfo.dwProcessId);
+    print_socket_error("(WSA) Error duplicating socket from parent");
+    exit(EXIT_FAILURE);
+  }
+
+  WriteFile(hPipeWrite, &protocolInfo, sizeof(protocolInfo), NULL, NULL);
+
+  CloseHandle(hPipeWrite);
+
   CloseHandle(pinfo.hProcess);
   CloseHandle(pinfo.hThread);
   return pinfo.dwProcessId;

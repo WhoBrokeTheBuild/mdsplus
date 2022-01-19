@@ -251,19 +251,25 @@ VOID CALLBACK ShutdownEvent(PVOID arg __attribute__((unused)),
   exit(0);
 }
 
-static inline SOCKET get_single_server_socket(char *name)
+static inline SOCKET get_single_server_socket()
 {
+  WSAPROTOCOL_INFOA protocolInfo;
+  freopen(NULL, "rb", stdin);
+  fread(&protocolInfo, sizeof(protocolInfo), 1, stdin);
+
+
   HANDLE shutdownEvent, waitHandle;
   HANDLE h;
-  int ppid;
-  SOCKET psock;
+  // int ppid;
+  // SOCKET psock;
+  SOCKET sock;
   char shutdownEventName[120];
-  if (name == 0 || sscanf(name, "%d:%d", &ppid, (int *)&psock) != 2)
-  {
-    fprintf(stderr, "Mdsip single connection server can only be started from "
-                    "windows service\n");
-    exit(EXIT_FAILURE);
-  }
+  // if (name == 0 || sscanf(name, "%d:%d", &ppid, (int *)&psock) != 2)
+  // {
+  //   fprintf(stderr, "Mdsip single connection server can only be started from "
+  //                   "windows service\n");
+  //   exit(EXIT_FAILURE);
+  // }
   char *logdir = GetLogDir();
   FREE_ON_EXIT(logdir);
   char *portnam = GetPortname();
@@ -274,27 +280,30 @@ static inline SOCKET get_single_server_socket(char *name)
   freopen(logfile, "a", stderr);
   FREE_NOW(logfile);
   FREE_NOW(logdir);
-  if (!DuplicateHandle(OpenProcess(PROCESS_ALL_ACCESS, TRUE, ppid),
-                       (HANDLE)psock, GetCurrentProcess(), (HANDLE *)&h,
-                       PROCESS_ALL_ACCESS, TRUE,
-                       DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS))
-  {
-    fprintf(stderr, "Attempting to duplicate socket from pid %d socket %d\n",
-            ppid, (int)psock);
-    perror("Error duplicating socket from parent");
-    exit(EXIT_FAILURE);
-  }
+
+  sock = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, &protocolInfo, 0, 0);
+
+  // if (!DuplicateHandle(OpenProcess(PROCESS_ALL_ACCESS, TRUE, ppid),
+  //                      (HANDLE)psock, GetCurrentProcess(), (HANDLE *)&h,
+  //                      PROCESS_ALL_ACCESS, TRUE,
+  //                      DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS))
+  // {
+  //   fprintf(stderr, "Attempting to duplicate socket from pid %d socket %d\n",
+  //           ppid, (int)psock);
+  //   perror("Error duplicating socket from parent");
+  //   exit(EXIT_FAILURE);
+  // }
+  
   sprintf(shutdownEventName, "MDSIP_%s_SHUTDOWN", GetPortname());
   shutdownEvent = CreateEvent(NULL, FALSE, FALSE, (LPCTSTR)shutdownEventName);
   if (!RegisterWaitForSingleObject(&waitHandle, shutdownEvent, ShutdownEvent,
                                    NULL, INFINITE, 0))
     perror("Error registering for shutdown event");
-  return *(int *)&h;
+  return sock;
 }
 #else
-static inline SOCKET get_single_server_socket(char *name)
+static inline SOCKET get_single_server_socket()
 {
-  (void)name;
   return 0;
 }
 static void ChildSignalHandler(int num __attribute__((unused)))
@@ -557,7 +566,11 @@ static int run_server_mode(Options *options)
 {
   /// SERVER MODE  ///////////////
   /// Handle single connection ///
-  SOCKET sock = get_single_server_socket(options->value);
+  SOCKET sock = INVALID_SOCKET;
+  if (options->present) {
+    sock = get_single_server_socket();
+  }
+
   int id;
   if (IS_NOT_OK(AcceptConnection(PROT, PROT, sock, 0, 0, &id, NULL)))
     return C_ERROR;
