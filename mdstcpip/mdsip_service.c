@@ -57,6 +57,7 @@ static int SpawnWorker(SOCKET sock)
   STARTUPINFO startupinfo;
   PROCESS_INFORMATION pinfo;
   WSAPROTOCOL_INFOA protocolInfo;
+
   char cmd[1024];
   SECURITY_ATTRIBUTES sc_atts;
   sc_atts.nLength = sizeof(sc_atts);
@@ -69,26 +70,59 @@ static int SpawnWorker(SOCKET sock)
   memset(&startupinfo, 0, sizeof(startupinfo));
   startupinfo.cb = sizeof(startupinfo);
 
-  HANDLE hPipeWrite;
-  CreatePipe(NULL, &hPipeWrite, NULL, sizeof(protocolInfo));
-  startupinfo.hStdInput = hPipeWrite;
+  printf("Calling CreatePipe\n");
+  fflush(stdout);
 
-  status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, FALSE, 0, NULL, NULL,
+  HANDLE hReadPipe, hWritePipe;
+  if (!CreatePipe(&hReadPipe, &hWritePipe, &sc_atts, sizeof(protocolInfo))) {
+    fprintf(stderr, "Error Creating Pipe: %lu\n", GetLastError());
+    fflush(stderr);
+  }
+
+  startupinfo.hStdInput = hReadPipe;
+  startupinfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+  startupinfo.hStdError = GetStdHandle(STD_OUTPUT_HANDLE);
+  startupinfo.dwFlags = STARTF_USESTDHANDLES;
+
+  printf("CreatePipe has succeed\n");
+  fflush(stdout);
+
+  status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, TRUE, 0, NULL, NULL,
                          &startupinfo, &pinfo);
   printf("CreateProcess returned %d with cmd=%s\n", status, cmd);
   fflush(stdout);
 
-  if (!WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo))
+  memset(&protocolInfo, 0, sizeof(protocolInfo));
+  if (WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo) > 0)
   {
-    fprintf(stderr, "(WSA) Attempting to duplicate socket %d into pid %d\n",
-            (int)sock, pinfo.dwProcessId);
     print_socket_error("(WSA) Error duplicating socket from parent");
+    fprintf(stderr, "(WSA) Attempting to duplicate socket %d into pid %lu\n",
+            (int)sock, pinfo.dwProcessId);
+
     exit(EXIT_FAILURE);
   }
+  printf("WSADuplicateSocketA has succeed\n");
+  fflush(stdout);
 
-  WriteFile(hPipeWrite, &protocolInfo, sizeof(protocolInfo), NULL, NULL);
+  DWORD bytesWritten = 0;
+  if(!WriteFile(hWritePipe, &protocolInfo, sizeof(protocolInfo), &bytesWritten, NULL)) {
+    fprintf(stderr, "Error writing to pipe: %lu\n", GetLastError());
+    fflush(stderr);
+  }
 
-  CloseHandle(hPipeWrite);
+  unsigned char * data = (unsigned char *)&protocolInfo;
+  for (int i = 0; i < (int)sizeof(protocolInfo); i++) {
+    printf("%02X ", data[i]);
+    if ((i % 10) == 0) {
+      printf("\n");
+    }
+  }
+  printf("\n");
+
+  printf("WriteFile wrote %ld into pipe\n", bytesWritten);
+  fflush(stdout);
+
+  CloseHandle(hWritePipe);
 
   CloseHandle(pinfo.hProcess);
   CloseHandle(pinfo.hThread);

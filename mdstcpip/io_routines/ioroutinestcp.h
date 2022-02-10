@@ -375,7 +375,7 @@ static int io_listen(int argc, char **argv)
 {
   Options options[] = {{"p", "port", 1, 0, 0},
 #ifdef _WIN32
-                       {"S", "sockethandle", 1, 0, 0},
+                       {"S", "sockethandle", 0, 0, 0},
 #endif
                        {0, 0, 0, 0, 0}};
 #ifndef _WIN32

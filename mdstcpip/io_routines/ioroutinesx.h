@@ -253,13 +253,8 @@ VOID CALLBACK ShutdownEvent(PVOID arg __attribute__((unused)),
 
 static inline SOCKET get_single_server_socket()
 {
-  WSAPROTOCOL_INFOA protocolInfo;
-  freopen(NULL, "rb", stdin);
-  fread(&protocolInfo, sizeof(protocolInfo), 1, stdin);
-
-
   HANDLE shutdownEvent, waitHandle;
-  HANDLE h;
+  // HANDLE h;
   // int ppid;
   // SOCKET psock;
   SOCKET sock;
@@ -281,6 +276,50 @@ static inline SOCKET get_single_server_socket()
   FREE_NOW(logfile);
   FREE_NOW(logdir);
 
+  WSAPROTOCOL_INFOA protocolInfo;
+  memset(&protocolInfo, 0, sizeof(protocolInfo));
+
+  printf("In get_single_server_socket\n");
+  fflush(stdout);
+
+  freopen(NULL, "rb", stdin);
+  // size_t bytesRead = fread(&protocolInfo, 1, sizeof(protocolInfo), stdin);
+  // printf("Read %u bytes \n", (unsigned)bytesRead);
+
+  unsigned char * ptr = (unsigned char *)&protocolInfo;
+  size_t bytesToRead = sizeof(protocolInfo);
+  while (bytesToRead > 0) {
+    size_t bytesRead = fread(ptr, 1, bytesToRead, stdin);
+    bytesToRead -= bytesRead;
+    ptr += bytesRead;
+    
+    printf("Read %u bytes\n", (unsigned)bytesRead);
+
+    if (bytesRead == 0) {
+      if (feof(stdin)) {
+        printf("EOF\n");
+      }
+      if (ferror(stdin)) {
+        printf("ERROR\n");
+      }
+      break;
+    }
+
+  }
+
+  unsigned char * data = (unsigned char *)&protocolInfo;
+  for (int i = 0; i < (int)sizeof(protocolInfo); i++) {
+    printf("%02X ", data[i]);
+    if ((i % 10) == 0) {
+      printf("\n");
+    }
+  }
+  printf("\n");
+  
+  if (bytesRead != sizeof(protocolInfo)) {
+    perror("fread protocolInfo failed");
+  }
+
   sock = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, &protocolInfo, 0, 0);
 
   // if (!DuplicateHandle(OpenProcess(PROCESS_ALL_ACCESS, TRUE, ppid),
@@ -299,6 +338,9 @@ static inline SOCKET get_single_server_socket()
   if (!RegisterWaitForSingleObject(&waitHandle, shutdownEvent, ShutdownEvent,
                                    NULL, INFINITE, 0))
     perror("Error registering for shutdown event");
+  
+  fclose(stdin);
+
   return sock;
 }
 #else
