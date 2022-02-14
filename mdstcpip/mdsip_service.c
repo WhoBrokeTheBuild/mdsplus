@@ -77,9 +77,6 @@ static int SpawnWorker(SOCKET sock)
     exit(EXIT_FAILURE);
   }
 
-  // Sleep for 30 seconds
-  Sleep(30000);
-
   memset(&protocolInfo, 0, sizeof(protocolInfo));
   if (WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo) > 0)
   {
