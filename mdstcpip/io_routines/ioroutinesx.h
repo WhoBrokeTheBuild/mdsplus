@@ -254,17 +254,8 @@ VOID CALLBACK ShutdownEvent(PVOID arg __attribute__((unused)),
 static inline SOCKET get_single_server_socket()
 {
   HANDLE shutdownEvent, waitHandle;
-  // HANDLE h;
-  // int ppid;
-  // SOCKET psock;
   SOCKET sock;
   char shutdownEventName[120];
-  // if (name == 0 || sscanf(name, "%d:%d", &ppid, (int *)&psock) != 2)
-  // {
-  //   fprintf(stderr, "Mdsip single connection server can only be started from "
-  //                   "windows service\n");
-  //   exit(EXIT_FAILURE);
-  // }
   char *logdir = GetLogDir();
   FREE_ON_EXIT(logdir);
   char *portnam = GetPortname();

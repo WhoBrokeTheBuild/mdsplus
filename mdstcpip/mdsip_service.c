@@ -71,12 +71,15 @@ static int SpawnWorker(SOCKET sock)
   memset(&startupinfo, 0, sizeof(startupinfo));
   startupinfo.cb = sizeof(startupinfo);
 
-  status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, FALSE, 0, NULL, NULL,
-                         &startupinfo, &pinfo);
+  status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, FALSE, 0, NULL, NULL, &startupinfo, &pinfo);
+  if (status == 0) {
+    fprintf(stderr, "CreateProcess failed with code %lu\n", GetLastError());
+    exit(EXIT_FAILURE);
+  }
 
   // Sleep for 30 seconds
   Sleep(30000);
-  
+
   memset(&protocolInfo, 0, sizeof(protocolInfo));
   if (WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo) > 0)
   {
