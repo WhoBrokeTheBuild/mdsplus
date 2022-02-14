@@ -279,60 +279,17 @@ static inline SOCKET get_single_server_socket()
   WSAPROTOCOL_INFOA protocolInfo;
   memset(&protocolInfo, 0, sizeof(protocolInfo));
 
-  printf("In get_single_server_socket\n");
-  fflush(stdout);
+  char tmpFilename[1024];
+  snprintf(tmpFilename, sizeof(tmpFilename), "%lu-protocol-info.dat", GetCurrentProcessId()); 
+  FILE * tmpProtocolInfo = fopen(tmpFilename, "rb");
 
-  freopen(NULL, "rb", stdin);
-  // size_t bytesRead = fread(&protocolInfo, 1, sizeof(protocolInfo), stdin);
-  // printf("Read %u bytes \n", (unsigned)bytesRead);
+  size_t bytesRead = fread(&protocolInfo, 1, sizeof(protocolInfo), tmpProtocolInfo);
 
-  unsigned char * ptr = (unsigned char *)&protocolInfo;
-  size_t bytesToRead = sizeof(protocolInfo);
-  while (bytesToRead > 0) {
-    size_t bytesRead = fread(ptr, 1, bytesToRead, stdin);
-    bytesToRead -= bytesRead;
-    ptr += bytesRead;
-    
-    printf("Read %u bytes\n", (unsigned)bytesRead);
-
-    if (bytesRead == 0) {
-      if (feof(stdin)) {
-        printf("EOF\n");
-      }
-      if (ferror(stdin)) {
-        printf("ERROR\n");
-      }
-      break;
-    }
-
-  }
-
-  unsigned char * data = (unsigned char *)&protocolInfo;
-  for (int i = 0; i < (int)sizeof(protocolInfo); i++) {
-    printf("%02X ", data[i]);
-    if ((i % 10) == 0) {
-      printf("\n");
-    }
-  }
-  printf("\n");
+  fclose(tmpProtocolInfo);
+  remove(tmpFilename);
   
-  if (bytesRead != sizeof(protocolInfo)) {
-    perror("fread protocolInfo failed");
-  }
-
   sock = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, &protocolInfo, 0, 0);
 
-  // if (!DuplicateHandle(OpenProcess(PROCESS_ALL_ACCESS, TRUE, ppid),
-  //                      (HANDLE)psock, GetCurrentProcess(), (HANDLE *)&h,
-  //                      PROCESS_ALL_ACCESS, TRUE,
-  //                      DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS))
-  // {
-  //   fprintf(stderr, "Attempting to duplicate socket from pid %d socket %d\n",
-  //           ppid, (int)psock);
-  //   perror("Error duplicating socket from parent");
-  //   exit(EXIT_FAILURE);
-  // }
-  
   sprintf(shutdownEventName, "MDSIP_%s_SHUTDOWN", GetPortname());
   shutdownEvent = CreateEvent(NULL, FALSE, FALSE, (LPCTSTR)shutdownEventName);
   if (!RegisterWaitForSingleObject(&waitHandle, shutdownEvent, ShutdownEvent,

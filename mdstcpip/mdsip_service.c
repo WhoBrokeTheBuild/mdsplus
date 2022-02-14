@@ -27,6 +27,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <process.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <direct.h>
 
 #include <socket_port.h>
 #include <mdsplus/mdsconfig.h>
@@ -63,35 +64,16 @@ static int SpawnWorker(SOCKET sock)
   sc_atts.nLength = sizeof(sc_atts);
   sc_atts.bInheritHandle = TRUE;
   sc_atts.lpSecurityDescriptor = NULL;
-  sprintf(cmd,
+  snprintf(cmd, sizeof(cmd), 
           "mdsip.exe --port=%s --hostfile=\"%s\" --compression=%d "
           "--sockethandle",
           GetPortname(), GetHostfile(), GetCompressionLevel());
   memset(&startupinfo, 0, sizeof(startupinfo));
   startupinfo.cb = sizeof(startupinfo);
 
-  printf("Calling CreatePipe\n");
-  fflush(stdout);
-
-  HANDLE hReadPipe, hWritePipe;
-  if (!CreatePipe(&hReadPipe, &hWritePipe, &sc_atts, sizeof(protocolInfo))) {
-    fprintf(stderr, "Error Creating Pipe: %lu\n", GetLastError());
-    fflush(stderr);
-  }
-
-  startupinfo.hStdInput = hReadPipe;
-  startupinfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-  startupinfo.hStdError = GetStdHandle(STD_OUTPUT_HANDLE);
-  startupinfo.dwFlags = STARTF_USESTDHANDLES;
-
-  printf("CreatePipe has succeed\n");
-  fflush(stdout);
-
-  status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, TRUE, 0, NULL, NULL,
+  status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, FALSE, 0, NULL, NULL,
                          &startupinfo, &pinfo);
-  printf("CreateProcess returned %d with cmd=%s\n", status, cmd);
-  fflush(stdout);
-
+                         
   memset(&protocolInfo, 0, sizeof(protocolInfo));
   if (WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo) > 0)
   {
@@ -101,28 +83,17 @@ static int SpawnWorker(SOCKET sock)
 
     exit(EXIT_FAILURE);
   }
-  printf("WSADuplicateSocketA has succeed\n");
-  fflush(stdout);
 
-  DWORD bytesWritten = 0;
-  if(!WriteFile(hWritePipe, &protocolInfo, sizeof(protocolInfo), &bytesWritten, NULL)) {
-    fprintf(stderr, "Error writing to pipe: %lu\n", GetLastError());
-    fflush(stderr);
+  char tmpFilename[1024];
+  snprintf(tmpFilename, sizeof(tmpFilename), "%lu-protocol-info.dat", pinfo.dwProcessId); 
+  FILE * tmpProtocolInfo = fopen(tmpFilename, "wb");
+  if (!tmpProtocolInfo) {
+    fprintf(stderr, "Failed to open %s\n", tmpFilename);
+    exit(EXIT_FAILURE);
   }
 
-  unsigned char * data = (unsigned char *)&protocolInfo;
-  for (int i = 0; i < (int)sizeof(protocolInfo); i++) {
-    printf("%02X ", data[i]);
-    if ((i % 10) == 0) {
-      printf("\n");
-    }
-  }
-  printf("\n");
-
-  printf("WriteFile wrote %ld into pipe\n", bytesWritten);
-  fflush(stdout);
-
-  CloseHandle(hWritePipe);
+  fwrite(&protocolInfo, 1, sizeof(protocolInfo), tmpProtocolInfo);
+  fclose(tmpProtocolInfo);
 
   CloseHandle(pinfo.hProcess);
   CloseHandle(pinfo.hThread);
