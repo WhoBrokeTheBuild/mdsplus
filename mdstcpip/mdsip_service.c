@@ -73,7 +73,10 @@ static int SpawnWorker(SOCKET sock)
 
   status = CreateProcess(NULL, TEXT(cmd), NULL, NULL, FALSE, 0, NULL, NULL,
                          &startupinfo, &pinfo);
-                         
+
+  // Sleep for 30 seconds
+  Sleep(30000);
+  
   memset(&protocolInfo, 0, sizeof(protocolInfo));
   if (WSADuplicateSocketA(sock, pinfo.dwProcessId, &protocolInfo) > 0)
   {

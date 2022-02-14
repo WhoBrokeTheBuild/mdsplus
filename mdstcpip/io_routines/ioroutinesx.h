@@ -280,12 +280,15 @@ static inline SOCKET get_single_server_socket()
   memset(&protocolInfo, 0, sizeof(protocolInfo));
 
   char tmpFilename[1024];
-  snprintf(tmpFilename, sizeof(tmpFilename), "%lu-protocol-info.dat", GetCurrentProcessId()); 
-  FILE * tmpProtocolInfo = fopen(tmpFilename, "rb");
+  snprintf(tmpFilename, sizeof(tmpFilename), "%lu-protocol-info.dat", GetCurrentProcessId());
 
-  size_t bytesRead = fread(&protocolInfo, 1, sizeof(protocolInfo), tmpProtocolInfo);
+  size_t bytesRead = 0;
+  while (bytesRead != sizeof(protocolInfo)) {
+    FILE * tmpProtocolInfo = fopen(tmpFilename, "rb");
+    bytesRead = fread(&protocolInfo, 1, sizeof(protocolInfo), tmpProtocolInfo);
+    fclose(tmpProtocolInfo);
+  }
 
-  fclose(tmpProtocolInfo);
   remove(tmpFilename);
   
   sock = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, &protocolInfo, 0, 0);
