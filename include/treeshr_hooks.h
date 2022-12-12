@@ -13,7 +13,8 @@ typedef enum
   GetData,
   GetNci,
   PutData,
-  PutNci
+  PutNci,
+  AddTag,
 } TreeshrHookType;
 
 #endif

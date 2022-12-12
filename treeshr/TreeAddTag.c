@@ -56,6 +56,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <string.h>
 #include <treeshr.h>
+#include <mdsshr.h>
 
 extern void **TreeCtx();
 
@@ -123,6 +124,25 @@ int _TreeAddTag(void *dbid, int nid_in, char const *tagnam)
         ((tag[i] < '0') || (tag[i] > '9')) && (tag[i] != '_'))
       return TreeINVTAG;
   }
+
+  EMPTYXD(hook_result_xd);
+  DESCRIPTOR_FROM_CSTRING(tag_d, tag);
+  TreeCallHookFun("TreeNidDataHook", "AddTag", dblist->tree_info->treenam, dblist->tree_info->shot, 0, &tag_d, &hook_result_xd);
+  TreeCallHook(AddTag, dblist->tree_info, 0);
+
+  if (hook_result_xd.dtype == DTYPE_DSC) {
+    mdsdsc_t * hook_result_d = (mdsdsc_t *)hook_result_xd.pointer;
+    if (hook_result_d->dtype == DTYPE_L) {
+      int hook_result = *(int *)hook_result_d->pointer;
+      if (!hook_result) {
+        return TreeINVTAG;
+      }
+    }
+  }
+
+  MdsFree1Dx(&hook_result_xd, 0);
+
+  // TreeINVTAG 
 
   node_ptr = nid_to_node(dblist, nid_ptr);
 
