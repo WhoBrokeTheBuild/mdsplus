@@ -286,7 +286,13 @@ add_compile_definitions(
 if(MSVC)
     add_compile_options(/Wall)
 else()
-    add_compile_options(-Wall -Wextra)
+    # if you are using ifort, then -Wall and -Wextra don't work
+    # add_compile_options seems a little broken for generator expressions, but SHELL fixes it
+    add_compile_options(
+        "SHELL:$<$<COMPILE_LANGUAGE:C>:-Wall -Wextra>"
+        "SHELL:$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Wall -Wextra>"
+        "SHELL:$<$<COMPILE_LANG_AND_ID:Fortran,Intel>:-warn all>"
+    )
 endif()
 
 if(ENABLE_WERROR)
@@ -294,7 +300,11 @@ if(ENABLE_WERROR)
     if(MSVC)
         add_compile_options(/WX)
     else()
-        add_compile_options(-Werror)
+        add_compile_options(
+            "SHELL:$<$<COMPILE_LANGUAGE:C>:-Werror>"
+            "SHELL:$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror>"
+            "SHELL:$<$<COMPILE_LANG_AND_ID:Fortran,Intel>:-warn error>"
+        )
     endif()
 
 endif()
