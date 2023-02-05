@@ -372,6 +372,27 @@ if(ENABLE_LARGEFILE)
 endif()
 
 ###
+### RPATHS
+### (removing dependence on LD_LIBRARY_PATH )
+
+file(RELATIVE_PATH libdir_relative
+    ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
+)
+if(APPLE)
+    list(APPEND CMAKE_INSTALL_RPATH @loader_path) # libs find libs, relatively
+    list(APPEND CMAKE_INSTALL_RPATH @executable_path/${libdir_relative}) # bin finds libs, relatively
+else()
+    list(APPEND CMAKE_INSTALL_RPATH $ORIGIN)
+    list(APPEND CMAKE_INSTALL_RPATH $ORIGIN/${libdir_relative})
+endif()
+# also add the install prefix (delayed evaluation until install)
+list(APPEND CMAKE_INSTALL_RPATH $<$<BOOL:TRUE>:\${CMAKE_INSTALL_PREFIX}/\${CMAKE_INSTALL_LIBDIR}>) 
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
+##
 ### Dependencies
 ###
 
