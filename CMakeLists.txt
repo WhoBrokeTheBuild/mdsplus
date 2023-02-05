@@ -462,6 +462,19 @@ if(ENABLE_JAVA)
 
     if(JDK_DIR)
         set(JAVA_HOME "${JDK_DIR}")
+    elseif(APPLE AND EXISTS /usr/libexec/java_home)
+        # this is a workaround for broken FindJNI.cmake on MacOS
+        # which only likes EXPLICIT setting of JAVA_HOME
+        # but also allows you to pick the jdk version
+        execute_process(
+            COMMAND /usr/libexec/java_home -v ${JAVA_TARGET_VERSION}
+            OUTPUT_VARIABLE _cmd_java_home
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET
+        )
+        if(_cmd_java_home AND IS_DIRECTORY "${_cmd_java_home}")
+            set(JAVA_HOME ${_cmd_java_home})
+        endif()
+        unset(_cmd_java_home)
     else()
         set(JAVA_HOME "$ENV{JAVA_HOME}")
     endif()
