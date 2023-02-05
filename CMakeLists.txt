@@ -419,8 +419,8 @@ find_package(LibLZMA)
 # Finds the ZLIB compression library
 find_package(ZLIB REQUIRED)
 
-set(libxml2_ROOT_DIR "${LIBXML2_DIR}")
-mark_as_advanced(libxml2_ROOT_DIR)
+set(LibXml2_ROOT_DIR "${LIBXML2_DIR}")
+mark_as_advanced(LibXml2_ROOT_DIR)
 find_package(LibXml2 REQUIRED)
 
 # Custom packages to find
