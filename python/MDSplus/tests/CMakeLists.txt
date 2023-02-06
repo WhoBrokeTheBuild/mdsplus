@@ -5,6 +5,8 @@ SET(_env_mods
 
 IF(WIN32)
     LIST(APPEND _env_mods "PATH=path_list_prepend:${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+elseif(APPLE)
+    LIST(APPEND _env_mods "DYLD_LIBRARY_PATH=path_list_prepend:${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 ELSE()
     LIST(APPEND _env_mods "LD_LIBRARY_PATH=path_list_prepend:${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 ENDIF()

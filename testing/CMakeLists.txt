@@ -81,3 +81,9 @@ target_link_libraries(
         Check
         MdsTestBackend
 )
+
+if (APPLE)
+    target_compile_definitions(MdsTest PUBLIC _DARWIN_C_SOURCE)
+    target_compile_definitions(MdsTestBackend PUBLIC _XOPEN_SOURCE=700)
+    target_compile_definitions(MdsTestShr PUBLIC _DARWIN_C_SOURCE)
+endif()
