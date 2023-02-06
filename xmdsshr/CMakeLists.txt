@@ -36,6 +36,9 @@ if(Motif_FOUND)
         XmdsXdBoxOnOffButton.c
     )
 
+    # this library has a lot of unused parameters due to the X API
+    target_compile_options(XmdsShr PRIVATE -Wno-unused-parameter)
+
     install(
         TARGETS XmdsShr
     )
