@@ -143,6 +143,11 @@ add_library(
 
 install(TARGETS MitDevicesIO)
 
+# fix a namespace collision with FREAD and FWRITE
+if (APPLE)
+    target_compile_definitions(MitDevicesIO PRIVATE _POSIX_C_SOURCE)
+endif()
+
 ###
 ### MitDevicesMsg
 ###
