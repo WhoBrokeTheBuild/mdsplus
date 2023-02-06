@@ -532,7 +532,7 @@ check_symbol_exists(mkstemp "stdlib.h" HAVE_MKSTEMP)
 check_symbol_exists(pthread_lock_global_np "pthread.h" HAVE_PTHREAD_LOCK_GLOBAL_NP)
 
 # FreeTDS / Sybase
-check_include_files("sybdb.h;sybfront.h" HAVE_SYBASE) # TODO: Improve
+set(HAVE_SYBASE Sybase_FOUND)
 
 # VxWorks Real-Time Operating System
 check_include_files("vxWorks.h" HAVE_VXWORKS_H)

@@ -45,6 +45,8 @@ target_link_libraries(
     TdiShr
     PUBLIC
         TreeShr
+    PRIVATE
+        $<$<BOOL:HAVE_SYBASE>:Sybase::Sybase>
 )
 
 target_compile_definitions(
