@@ -104,7 +104,7 @@ add_library(
 target_link_libraries(
     MitDevices
     PUBLIC
-        IDL::IDL
+        $<$<BOOL:${ENABLE_IDL}>:IDL::IDL>
         Motif::Motif
 )
 
