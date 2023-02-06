@@ -107,9 +107,16 @@ target_link_libraries(
         Mdsdcl
         CamShr
         XmdsShr
-        IDL::IDL
         Motif::Motif
 )
+
+if (ENABLE_IDL)
+    target_link_libraries(
+        MitDevices
+        PUBLIC
+            IDL::IDL
+    )
+endif()
 
 add_static_copy(MitDevices)
 
