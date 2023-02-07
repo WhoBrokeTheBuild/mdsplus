@@ -40,3 +40,11 @@ ADD_TEST(
     NAME UdpEventsTestStatics
     COMMAND $<TARGET_FILE:UdpEventsTestStatics>
 )
+
+set_tests_properties(
+    # run these serially so the don't use the same socket
+    UdpEventsTest
+    UdpEventsTestStatics 
+    PROPERTIES 
+        RUN_SERIAL TRUE
+)
