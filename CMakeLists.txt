@@ -449,7 +449,7 @@ find_package(DC1394)
 
 # Configuration-dependent dependencies
 
-if(ENABLE_TESTS)
+if(ENABLE_TESTS AND NOT APPLE)
 
     # cmake/FindLibRT.cmake
     find_library(LIBRT rt REQUIRED)
