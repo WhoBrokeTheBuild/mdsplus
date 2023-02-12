@@ -141,6 +141,12 @@ add_library(
     curvefit.c
 )
 
+target_link_libraries(
+    MitDevicesIO
+    PRIVATE
+        MdsMath
+)
+
 install(TARGETS MitDevicesIO)
 
 # fix a namespace collision with FREAD and FWRITE
