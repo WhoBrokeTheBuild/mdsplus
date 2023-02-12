@@ -153,7 +153,7 @@ add_library(
 
 target_link_libraries(
     MitDevicesIO
-    PUBLIC
+    PRIVATE
         MdsMath
 )
 
