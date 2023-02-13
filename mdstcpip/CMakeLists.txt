@@ -88,7 +88,7 @@ target_compile_definitions(
 
 add_static_copy(MdsIpShr)
 
-install(TARGETS MdsIpShr-static)
+install(TARGETS MdsIpShr MdsIpShr-static)
 
 ###
 ### MdsIpTCP
