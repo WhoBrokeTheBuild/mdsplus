@@ -99,6 +99,8 @@ add_library(
     io_routines/IoRoutinesTcp.c
 )
 
+target_link_libraries(MdsIpTCP PRIVATE MdsIpShr)
+
 install(TARGETS MdsIpTCP)
 
 ###
@@ -109,6 +111,8 @@ add_library(
     MdsIpTCPV6
     io_routines/IoRoutinesTcpV6.c
 )
+
+target_link_libraries(MdsIpTCPV6 PRIVATE MdsIpShr)
 
 install(TARGETS MdsIpTCPV6)
 
@@ -124,6 +128,7 @@ add_library(
 target_link_libraries(
     MdsIpUDT
     PRIVATE
+        MdsIpShr
         UDT4
 )
 
@@ -141,6 +146,7 @@ add_library(
 target_link_libraries(
     MdsIpUDTV6
     PRIVATE
+        MdsIpShr
         UDT4
 )
 
@@ -259,6 +265,8 @@ if(Globus_FOUND AND Globus_FLAVOR)
         MdsIpGSI
         PUBLIC
             Globus::Globus
+        PRIVATE
+            MdsIpShr
     )
 
     install(TARGETS MdsIpGSI)

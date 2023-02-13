@@ -106,6 +106,11 @@ target_link_libraries(
     PUBLIC
         $<$<BOOL:${ENABLE_IDL}>:IDL::IDL>
         Motif::Motif
+    PRIVATE
+        MdsShr
+        XmdsShr
+        CamShr
+        Mdsdcl
 )
 
 add_static_copy(MitDevices)
