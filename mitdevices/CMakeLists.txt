@@ -103,7 +103,7 @@ add_library(
 
 target_link_libraries(
     MitDevices
-    PUBLIC
+    PRIVATE
         Mdsdcl
         CamShr
         XmdsShr
