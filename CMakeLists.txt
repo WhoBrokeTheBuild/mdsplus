@@ -369,6 +369,7 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 if(PYTHON)
     set(Python_EXECUTABLE "${PYTHON}")
 else()
+    set(Python_FIND_FRAMEWORK LAST) # don't prefer system apple python
     find_package(Python COMPONENTS Interpreter REQUIRED)
 endif()
 
