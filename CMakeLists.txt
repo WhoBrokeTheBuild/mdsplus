@@ -588,37 +588,37 @@ endif()
 
 # TODO: s/CMAKE_SOURCE_DIR/CMAKE_BINARY_DIR/g
 
-file(GLOB_RECURSE
-    _messages_xml_list
-    "*/*messages.xml"
-)
+# file(GLOB_RECURSE
+#     _messages_xml_list
+#     "*/*messages.xml"
+# )
 
-set(_messages_generated_file_list
-    "${CMAKE_SOURCE_DIR}/python/MDSplus/mdsExceptions.py"
-)
+# set(_messages_generated_file_list
+#     "${CMAKE_SOURCE_DIR}/python/MDSplus/mdsExceptions.py"
+# )
 
-# Determine the header filenames that will be created
-foreach(_messages_xml IN LISTS _messages_xml_list)
-    cmake_path(GET _messages_xml STEM _stem)
-    LIST(APPEND _messages_generated_file_list "${CMAKE_SOURCE_DIR}/include/${_stem}.h")
-endforeach()
+# # Determine the header filenames that will be created
+# foreach(_messages_xml IN LISTS _messages_xml_list)
+#     cmake_path(GET _messages_xml STEM _stem)
+#     LIST(APPEND _messages_generated_file_list "${CMAKE_SOURCE_DIR}/include/${_stem}.h")
+# endforeach()
 
-# Check to see if we already have all the files generated
-set(_run_gen_messages FALSE)
-foreach(_file IN LISTS _messages_generated_file_list)
-    if(NOT EXISTS "${_file}")
-        message("Missing ${_file}, will run deploy/gen_messages.py")
-        set(_run_gen_messages TRUE)
-    endif()
-endforeach()
+# # Check to see if we already have all the files generated
+# set(_run_gen_messages FALSE)
+# foreach(_file IN LISTS _messages_generated_file_list)
+#     if(NOT EXISTS "${_file}")
+#         message("Missing ${_file}, will run deploy/gen_messages.py")
+#         set(_run_gen_messages TRUE)
+#     endif()
+# endforeach()
 
-# If not, generate them
-if(_run_gen_messages)
-    message("Running deploy/gen_messages.py")
-    execute_process(
-        COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/deploy/gen_messages.py
-    )
-endif()
+# # If not, generate them
+# if(_run_gen_messages)
+#     message("Running deploy/gen_messages.py")
+#     execute_process(
+#         COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/deploy/gen_messages.py
+#     )
+# endif()
 
 # message("${_messages_generated_list}")
 
@@ -640,79 +640,79 @@ endif()
 
 ###
 ### Generate sources with Yacc/Bison
-###
+###e
 
-if(NOT _yacc_has_run)
+# if(NOT _yacc_has_run)
 
-    message("Processing Yacc files")
+#     message("Processing Yacc files")
 
-    find_program(
-        yacc_EXECUTABLE
-        NAMES bison yacc
-        REQUIRED
-    )
+#     find_program(
+#         yacc_EXECUTABLE
+#         NAMES bison yacc
+#         REQUIRED
+#     )
 
-    file(GLOB_RECURSE
-        _yacc_input_list
-        "*.y"
-    )
+#     file(GLOB_RECURSE
+#         _yacc_input_list
+#         "*.y"
+#     )
 
-    foreach (_file ${_yacc_input_list})
+#     foreach (_file ${_yacc_input_list})
 
-        # Make output directory
-        cmake_path(GET _file PARENT_PATH _parent_path)
-        string(REPLACE "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" _binary_path "${_parent_path}")
-        file(MAKE_DIRECTORY "${_binary_path}")
+#         # Make output directory
+#         cmake_path(GET _file PARENT_PATH _parent_path)
+#         string(REPLACE "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" _binary_path "${_parent_path}")
+#         file(MAKE_DIRECTORY "${_binary_path}")
 
-        message("Running ${yacc_EXECUTABLE} --verbose ${_file}")
-        execute_process(
-            COMMAND ${yacc_EXECUTABLE} --verbose ${_file}
-        )
+#         message("Running ${yacc_EXECUTABLE} --verbose ${_file}")
+#         execute_process(
+#             COMMAND ${yacc_EXECUTABLE} --verbose ${_file}
+#         )
 
-    endforeach()
+#     endforeach()
 
-    # Only run this the first time
-    set(_yacc_has_run TRUE CACHE INTERNAL "")
+#     # Only run this the first time
+#     set(_yacc_has_run TRUE CACHE INTERNAL "")
 
-endif()
+# endif()
 
 ###
 ### Generate sources with Lex/Flex
 ###
 
-if(NOT _lex_has_run)
+# if(NOT _lex_has_run)
 
-    message("Processing Lex files")
+#     message("Processing Lex files")
 
-    find_program(
-        lex_EXECUTABLE
-        NAMES flex lex
-        REQUIRED
-    )
+#     find_program(
+#         lex_EXECUTABLE
+#         NAMES flex lex
+#         REQUIRED
+#     )
 
-    file(GLOB_RECURSE
-        _lex_input_list
-        "*.l"
-    )
+#     file(GLOB_RECURSE
+#         _lex_input_list
+#         "*.l"
+#     )
 
-    foreach (_file ${_lex_input_list})
+#     foreach (_file ${_lex_input_list})
 
-        # Make output directory
-        cmake_path(GET _file PARENT_PATH _parent_path)
-        string(REPLACE "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" _binary_path "${_parent_path}")
-        file(MAKE_DIRECTORY "${_binary_path}")
+#         # Make output directory
+#         cmake_path(GET _file PARENT_PATH _parent_path)
+#         string(REPLACE "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" _binary_path "${_parent_path}")
+#         file(MAKE_DIRECTORY "${_binary_path}")
 
-        message("Running ${lex_EXECUTABLE} -p ${_file}")
-        execute_process(
-            COMMAND ${lex_EXECUTABLE} -p ${_file}
-        )
+#         message("Running ${lex_EXECUTABLE} -p ${_file}")
+#         execute_process(
+#             COMMAND ${lex_EXECUTABLE} -p ${_file}
+#         )
 
-    endforeach()
+#     endforeach()
 
-    # Only run this the first time
-    set(_lex_has_run TRUE CACHE INTERNAL "")
+#     # Only run this the first time
+#     set(_lex_has_run TRUE CACHE INTERNAL "")
 
-endif()
+# endif()
 
 ###
 ### Generate Documentation
