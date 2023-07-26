@@ -72,6 +72,24 @@ else()
 
 endif()
 
+# TODO: Remove
+# target_compile_options(
+#     MdsMath
+#     PRIVATE
+#         $<$<COMPILE_LANGUAGE:Fortran>:
+#             $<$<Fortran_COMPILER_ID:GNU>:
+#                 -Wno-maybe-uninitialized
+#                 -Wno-compare-reals
+#             >
+#             $<$<Fortran_COMPILER_ID:Intel>:
+#                 # intel warnings needing suppression
+#                 "SHELL:-warn noexternals"
+#                 "SHELL:-warn nodeclarations"
+#                 "SHELL:-warn notruncated_source"
+#             >
+#         >
+# )
+
 target_compile_definitions(
     MdsMath
     PRIVATE
