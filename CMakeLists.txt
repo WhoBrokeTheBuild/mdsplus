@@ -802,6 +802,9 @@ if(TEST_WITH_WINE)
     endif()
 endif()
 
+# Update the option with the python executable we found
+set(PYTHON "${Python_EXECUTABLE}" CACHE STRING "" FORCE)
+
 # Finds the platform specific threading libraries, usually pthreads
 find_package(Threads REQUIRED)
 
