@@ -1,21 +1,20 @@
 
 def OSList = [
-    'windows',
-    'ubuntu18',
-    'ubuntu20',
-    'ubuntu22',
-    'rhel7',
-    'rhel8',
-    'rhel9',
-    // 'alpine3.9-armhf',
-    // 'alpine3.9-x86_64',
-    // 'alpine3.9-x86',
-    'debian9-64',
-    'debian10-64',
-    'debian11-64',
     'test-asan',
     'test-tsan',
     'test-ubsan',
+    'test-helgrind',
+    'test-memcheck',
+    'ubuntu-18-x86_64',
+    'ubuntu-20-x86_64',
+    'ubuntu-22-x86_64',
+    // 'rhel-8-x86_64',
+    'rhel-9-x86_64',
+    'alpine-3.14-x86_64',
+    // 'alpine-3.14-arm64',
+    'debian-11-x86_64',
+    'debian-12-x86_64',
+    'amazonlinux-2-x86_64',
 ]
 
 def AdminList = [
@@ -123,41 +122,12 @@ pipeline {
                                         checkout scm;
                                     }
 
-                                    stage("${OS} Bootstrap") {
-                                        sh "./deploy/build.sh --os=bootstrap --branch=${BRANCH_NAME} --version=${new_version}"
+                            stage("${OS} Clone") {
+                                checkout scm;
 
-                                        if (OS.endsWith("armhf")) {
-                                            sh "docker run --rm --privileged multiarch/qemu-user-static:register --reset"
-                                        }
-                                    }
-
-                                    stage("${OS} Test") {
-                                        try {
-                                            def network = "jenkins-${EXECUTOR_NUMBER}-${OS}"
-                                            sh "./deploy/build.sh --os=${OS} --test --dockernetwork=${network}"
-                                        }
-                                        finally {
-                                            sh "./deploy/tap-to-junit.py --junit-suite-name=${OS}"
-                                            junit skipPublishingChecks: true, testResults: 'mdsplus-junit.xml', keepLongStdio: true
-
-                                            echo "Testing complete"
-                                        }
-                                    }
-
-                                    if (!OS.startsWith("test-")) {
-                                        stage("${OS} Release") {
-                                            sh "./deploy/build.sh --os=${OS} --release --branch=${BRANCH_NAME} --version=${new_version}"
-                                            
-                                            findFiles(glob: "packages/*.tgz").each {
-                                                file -> release_file_list.add(WORKSPACE + "/" + file.path)
-                                            }
-
-                                            findFiles(glob: "packages/*.exe").each {
-                                                file -> release_file_list.add(WORKSPACE + "/" + file.path)
-                                            }
-                                        }
-                                    }
-                                }
+                                // if (env.OS.endsWith("armhf")) {
+                                //     sh "docker run --rm --privileged multiarch/qemu-user-static:register --reset"
+                                // }
                             }
                         }]
                     }
@@ -165,20 +135,10 @@ pipeline {
             }
         }
 
-        stage('Additional Testing') {
-            parallel {
-                stage("Test IDL") {
-                    steps {
-                        // The IDL tests have to be run with the same OS as the builder
-                        ws("${WORKSPACE}/ubuntu22") {
-                            withEnv(["MDSPLUS_DIR=${WORKSPACE}/tests/64/buildroot"]) {
-                                sh """
-                                    set +x
-                                    . \$MDSPLUS_DIR/setup.sh
-                                    export PYTHONPATH=\$MDSPLUS_DIR/python/
-                                    set -x
-                                    ./idl/testing/run_tests.py
-                                """
+                            stage("${OS} Test") {
+                                sh "./deploy/build.py -j --os=${OS} --test"
+
+                                archiveArtifacts artifacts: 'tests/**/*.log,tests/**/test-suite.tap,tests/**/core'
                             }
                         }
                     }
@@ -242,8 +202,6 @@ pipeline {
     }
     post {
         always {
-            archiveArtifacts artifacts: "**/test-suite.tap,**/core", followSymlinks: false
-
             cleanWs disableDeferredWipeout: true, deleteDirs: true
         }
     }
