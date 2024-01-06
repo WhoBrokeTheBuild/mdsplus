@@ -211,7 +211,8 @@ pipeline {
         always {
             junit '**/mdsplus-junit.xml'
 
-            archiveArtifacts artifacts: "**/test.log"
+            // Collect valgrind core dumps
+            archiveArtifacts artifacts: "**/core", allowEmptyArchive: true
 
             cleanWs disableDeferredWipeout: true, deleteDirs: true
         }
