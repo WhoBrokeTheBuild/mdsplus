@@ -42,10 +42,6 @@ public class MdsEventTest
 	public void testData() throws Exception
 	{
 		java.lang.String eventName = new java.lang.String("MDSEVENTTEST");
-		java.lang.String testIndexEnv = System.getenv("TEST_INDEX");
-		if (testIndexEnv != null) {
-			eventName += "_" + testIndexEnv;
-		}
 		
 		final EventReceiver eventRec = new EventReceiver(eventName);
 		eventReceived = false;

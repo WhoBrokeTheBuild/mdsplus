@@ -53,11 +53,6 @@ public class MdsShr_Test
 	public final void testMdsEvent() throws MdsException
 	{
 		java.lang.String eventName = new java.lang.String("MDSSHR_TEST");
-		java.lang.String testIndexEnv = System.getenv("TEST_INDEX");
-		if (testIndexEnv != null) {
-			eventName += "_" + testIndexEnv;
-		}
-
 		Assert.assertEquals(1, MdsShr_Test.mdsshr.mdsEvent(null, eventName) & 1);
 	}
 

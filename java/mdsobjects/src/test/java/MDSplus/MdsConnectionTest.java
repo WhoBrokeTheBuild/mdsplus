@@ -12,55 +12,46 @@ import org.junit.Test;
 
 public class MdsConnectionTest
 {
-	static int port = 8000;
+	// See testing/ports.csv
+	static int port = 8012;
 	static Process mdsip;
 
 	@BeforeClass
 	public static void setUpBeforeClass() throws Exception
 	{
-		int test_index = 0;
-		java.lang.String test_index_env = System.getenv("TEST_INDEX");
-		if (test_index_env != null) {
+		int test_port_offset = 0;
+		java.lang.String test_port_offset_env = System.getenv("TEST_PORT_OFFSET");
+		if (test_port_offset_env != null) {
 			try {
-				test_index = Integer.parseInt(test_index_env);
+				test_port_offset = Integer.parseInt(test_port_offset_env);
 			}
 			catch (final NumberFormatException exc)
 			{}
 		}
 
-		port += test_index;
+		port += test_port_offset;
 
-		for (; port < 8000 + test_index + 800; port++)
+		try
 		{
-			try
+			new DatagramSocket(port).close();
+			java.lang.String hostspath = System.getenv("MDSPLUS_DIR") + "/testing/mdsip.hosts";
+			if (!new File(hostspath).exists())
 			{
-				new DatagramSocket(port).close();
-				java.lang.String hostspath = System.getenv("MDSPLUS_DIR") + "/testing/mdsip.hosts";
+				hostspath = "/etc/mdsip.hosts";
 				if (!new File(hostspath).exists())
 				{
-					hostspath = "/etc/mdsip.hosts";
-					if (!new File(hostspath).exists())
-					{
-						System.exit(5);
-					}
+					System.exit(5);
 				}
-				final java.lang.String parts[] =
-				{ "mdsip", "-s", "-p", Integer.toString(port), "-h", hostspath };
-				System.out.println(java.lang.String.join(" ", parts));
-				final ProcessBuilder pb = new ProcessBuilder(parts);
-				mdsip = pb.start();
-				return;
 			}
-			catch (final SocketException exc)
-			{}
-
-			// If we have $TEST_INDEX set and we cannot bind to that port, searching for another will collide with a different test
-			// if (test_index != 0) {
-			// 	break;
-			// }
+			final java.lang.String parts[] =
+			{ "mdsip", "-s", "-p", Integer.toString(port), "-h", hostspath };
+			System.out.println(java.lang.String.join(" ", parts));
+			final ProcessBuilder pb = new ProcessBuilder(parts);
+			mdsip = pb.start();
+			return;
 		}
-		System.out.println("Cannot find free port!");
-		System.exit(6);
+		catch (final SocketException exc)
+		{}
 	}
 
 	@AfterClass

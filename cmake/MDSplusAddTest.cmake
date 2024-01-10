@@ -1,6 +1,6 @@
 include_guard(GLOBAL)
 
-set(MDSPLUS_TEST_INDEX ${MDSPLUS_TEST_INDEX_OFFSET} CACHE STRING "" FORCE)
+set(MDSPLUS_TEST_INDEX 0 CACHE STRING "" FORCE)
 
 #
 # mdsplus_add_test(NAME <name>
@@ -92,12 +92,14 @@ function(mdsplus_add_test)
     endif()
 
     set(_index ${MDSPLUS_TEST_INDEX})
+    math(EXPR _event_port "4000 + ${_index}")
 
     list(APPEND _env_mods ${ARGS_ENVIRONMENT_MODIFICATION})
 
     set(_base_env_mods
         ${_env_mods}
         "TEST_INDEX=set:${_index}"
+        "mdsevent_port=set:${_event_port}"
         "MDSIP_CLIENT_LOCAL_LOGFILE=set:${CMAKE_CURRENT_BINARY_DIR}/mdsip-local-${ARGS_NAME}-${_index}.log"
     )
 
@@ -121,7 +123,7 @@ function(mdsplus_add_test)
             FAIL_REGULAR_EXPRESSION "FAILED"
     )
 
-    math(EXPR _index "${_index}+1")
+    math(EXPR _index "${_index} + 1")
 
     if(GENERATE_VSCODE_LAUNCH_JSON)
         message(STATUS "Adding ${_target} to .vscode/launch.json")
@@ -144,9 +146,12 @@ function(mdsplus_add_test)
             list(APPEND _valgrind_flags "--suppressions=${_supp}")
         endforeach()
 
+        # Each variant of tests gets a unique port range
+        set(_test_port_offset 1000)
+
         foreach(_tool IN LISTS Valgrind_TOOL_LIST)
             set(_target_tool "${_target}-${_tool}")
-            list(APPEND _target_list "${_target_tool}")
+        list(APPEND _target_list "${_target_tool}")
 
             string(REPLACE "-" "_" _tool_no_dash ${_tool})
 
@@ -158,9 +163,13 @@ function(mdsplus_add_test)
                 WORKING_DIRECTORY ${ARGS_WORKING_DIRECTORY}/${_tool}
             )
 
+            math(EXPR _event_port "4000 + ${_index}")
+
             set(_valgrind_env_mods
                 ${_env_mods}
                 "TEST_INDEX=set:${_index}"
+                "TEST_PORT_OFFSET=set:${_test_port_offset}"
+                "mdsevent_port=set:${_event_port}"
                 "MDSIP_CLIENT_LOCAL_LOGFILE=set:${CMAKE_CURRENT_BINARY_DIR}/mdsip-local-${ARGS_NAME}-${_index}.log"
             )
 
@@ -171,7 +180,8 @@ function(mdsplus_add_test)
                     FAIL_REGULAR_EXPRESSION "FAILED"
             )
 
-            math(EXPR _index "${_index}+1")
+            math(EXPR _index "${_index} + 1")
+            math(EXPR _test_port_offset "${_test_port_offset} + 1000")
         endforeach()
         
     endif()
