@@ -96,6 +96,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--dockernetwork',
+    metavar='',
+    help='',
+)
+
+parser.add_argument(
     '--platform',
     metavar='',
     help='',
@@ -238,6 +244,9 @@ if args['output-junit']:
     if args['junit-suite-name'] is None:
         args['junit-suite-name'] = args['os']
 
+if args['dockernetwork'] == '':
+    args['dockernetwork'] = None
+
 if args['source'] is None:
     args['source'] = root_dir
 
@@ -260,7 +269,7 @@ if args['dockerimage'] is not None:
     for arg in build_command_line(args):
 
         # We don't want the .opts files to be parsed recursively
-        if arg.startswith('--os'):
+        if arg.startswith('--os='):
             continue
 
         # We don't want docker to run recursively
@@ -296,6 +305,11 @@ if args['dockerimage'] is not None:
     import platform
     if platform.system() != 'Windows':
         docker_args = [ '--user', f"{os.getuid()}:{os.getgid()}" ] + docker_args
+
+    if args['dockernetwork'] is not None:
+        subprocess.run([ 'docker', 'network', 'create', args['dockernetwork'] ])
+        # TODO: error checking
+        docker_args = [ '--network', args['dockernetwork'] ] + docker_args
 
     if args['interactive']:
         subprocess.run(
@@ -336,8 +350,13 @@ if args['dockerimage'] is not None:
 
         def kill_docker(signum, frame):
             print(f'\nKilling docker container {container_id}')
+            
             subprocess.run([ 'docker', 'kill', container_id ])
             subprocess.run([ 'docker', 'rm', container_id ])
+
+            if args['dockernetwork'] is not None:
+                subprocess.run([ 'docker', 'network', 'rm', args['dockernetwork'] ])
+
             exit(1)
 
         signal.signal(signal.SIGINT, kill_docker)
@@ -366,6 +385,9 @@ if args['dockerimage'] is not None:
         exit_code = int(result.stdout.decode().strip().strip('"'))
         
         subprocess.run([ 'docker', 'rm', container_id ])
+
+        if args['dockernetwork'] is not None:
+            subprocess.run([ 'docker', 'network', 'rm', args['dockernetwork'] ])
 
         if exit_code != 0:
             exit(exit_code)
