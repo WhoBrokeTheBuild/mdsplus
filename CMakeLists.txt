@@ -550,20 +550,6 @@ foreach(_lang IN ITEMS C CXX)
 endforeach()
 
 ###
-### Display user options and CMake configuration
-###
-
-message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME} (Processor: ${CMAKE_SYSTEM_PROCESSOR})")
-message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER} (ID: ${CMAKE_C_COMPILER_ID}, Version: ${CMAKE_C_COMPILER_VERSION})")
-message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER} (ID: ${CMAKE_CXX_COMPILER_ID}, Version: ${CMAKE_CXX_COMPILER_VERSION})")
-message(STATUS "CMAKE_Fortran_COMPILER: ${CMAKE_Fortran_COMPILER} (ID: ${CMAKE_Fortran_COMPILER_ID}, Version: ${CMAKE_Fortran_COMPILER_VERSION})")
-message(STATUS "CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
-message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
-message(STATUS "CMAKE_Fortran_FLAGS: ${CMAKE_Fortran_FLAGS}")
-
-mdsplus_print_options()
-
-###
 ### RPATH Configuration, to remove dependence on [DY]LD_LIBRARY_PATH
 ###
 
@@ -607,6 +593,7 @@ if(NOT DEFINED Python_EXECUTABLE AND NOT PYTHON STREQUAL "")
 endif()
 
 find_package(Python COMPONENTS Interpreter Development.Embed REQUIRED)
+set(PYTHON "${Python_EXECUTABLE}")
 
 # Finds the platform specific threading libraries, usually pthreads
 find_package(Threads REQUIRED)
@@ -690,6 +677,21 @@ if(ENABLE_JAVA)
     mark_as_advanced(mvn_EXECUTABLE)
 
     list(APPEND CMAKE_JAVA_COMPILE_FLAGS -encoding UTF-8)
+
+    if(JAVA_HOME STREQUAL "")
+        execute_process(
+            COMMAND ${Java_JAVA_EXECUTABLE} -XshowSettings:properties -version
+            ERROR_VARIABLE _result # for some reason this outputs to stderr
+        )
+
+        if("${_result}" MATCHES "java\.home = ([^\n]*)")
+            set(JAVA_HOME "${CMAKE_MATCH_1}")
+        endif()
+    endif()
+
+    if(JAVA_VERSION STREQUAL "")
+        set(JAVA_VERSION "${Java_VERSION}")
+    endif()
 
 endif()
 
@@ -798,6 +800,20 @@ if(ENABLE_VALGRIND)
     )
 
 endif()
+
+###
+### Display user options and CMake configuration
+###
+
+message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME} (Processor: ${CMAKE_SYSTEM_PROCESSOR})")
+message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER} (ID: ${CMAKE_C_COMPILER_ID}, Version: ${CMAKE_C_COMPILER_VERSION})")
+message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER} (ID: ${CMAKE_CXX_COMPILER_ID}, Version: ${CMAKE_CXX_COMPILER_VERSION})")
+message(STATUS "CMAKE_Fortran_COMPILER: ${CMAKE_Fortran_COMPILER} (ID: ${CMAKE_Fortran_COMPILER_ID}, Version: ${CMAKE_Fortran_COMPILER_VERSION})")
+message(STATUS "CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_Fortran_FLAGS: ${CMAKE_Fortran_FLAGS}")
+
+mdsplus_print_options()
 
 ###
 ### Check for includes, Libraries, and Symbols

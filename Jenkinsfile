@@ -208,7 +208,7 @@ pipeline {
     post {
         always {
             
-            junit skipPublishingChecks: true, testResults: '**/mdsplus-junit.xml'
+            junit skipPublishingChecks: true, testResults: '**/mdsplus-junit.xml', keepLongStdio: true
 
             // Collect valgrind core dumps
             archiveArtifacts artifacts: "**/core", allowEmptyArchive: true
