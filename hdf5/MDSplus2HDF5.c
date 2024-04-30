@@ -331,14 +331,12 @@ static void PutNumeric(hid_t parent, char *name, struct descriptor *dsc)
   }
 }
 
-typedef ARRAY_COEFF(char, MAX_DIMS) ARRAY_AC;
-
 static void PutArray(hid_t parent, char *name, struct descriptor *dsc)
 {
   int j;
   //  herr_t status;
   struct descriptor_a *adsc = (struct descriptor_a *)dsc;
-  ARRAY_AC *ac_dsc = (ARRAY_AC *)dsc;
+  array_coeff *ac_dsc = (array_coeff *)dsc;
   hid_t space_id;
   hid_t ds_id;
   int rank = adsc->dimct;

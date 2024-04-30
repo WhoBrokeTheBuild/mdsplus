@@ -69,7 +69,7 @@ static void PutArray(char dtype, int size, int n_dims, hsize_t *dims, void *ptr,
   else
   {
     int i;
-    DESCRIPTOR_A_COEFF(dsc, 0, 0, 0, 8, 0);
+    DESCRIPTOR_A_COEFF(dsc, 0, 0, 0, MAX_DIMS, 0);
     dsc.length = size;
     dsc.dtype = dtype;
     dsc.pointer = ptr;

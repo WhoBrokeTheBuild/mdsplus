@@ -121,7 +121,7 @@ int Tdi1Subscript(opcode_t opcode, int narg, struct descriptor *list[],
       unsigned int idx;
       int check;
       DESCRIPTOR_LONG(ans, &check);
-      ARRAY(struct descriptor *) *apd = (void *)dat[0].pointer;
+      array_desc *apd = (void *)dat[0].pointer;
       for (idx = 0; idx < ((apd->arsize / apd->length) - 1); idx += 2)
       {
         if (IS_OK(TdiEq(apd->pointer[idx], list[1], &ans MDS_END_ARG)) &&
@@ -136,7 +136,7 @@ int Tdi1Subscript(opcode_t opcode, int narg, struct descriptor *list[],
     else if (dat[0].pointer && dat[0].pointer->dtype == DTYPE_LIST)
     {
       unsigned int idx;
-      ARRAY(struct descriptor *) *apd = (void *)dat[0].pointer;
+      array_desc *apd = (void *)dat[0].pointer;
       status = TdiGetLong(list[1], &idx);
       if (STATUS_NOT_OK)
         goto baddat;

@@ -261,7 +261,6 @@ int _TreeOpenDatafileR(TREE_INFO *info)
 }
 
 typedef RECORD(1) record_one;
-typedef ARRAY(struct descriptor *) array_dsc;
 
 int TreeMakeNidsLocal(struct descriptor *dsc_ptr, int nid)
 {
@@ -316,7 +315,7 @@ int TreeMakeNidsLocal(struct descriptor *dsc_ptr, int nid)
 
     case CLASS_APD:
     {
-      array_dsc *aptr = (array_dsc *)dsc_ptr;
+      array_desc *aptr = (array_desc *)dsc_ptr;
       int n_elts = aptr->arsize / aptr->length;
       int i;
       for (status = 1, i = 0; STATUS_OK && (i < n_elts); i++)

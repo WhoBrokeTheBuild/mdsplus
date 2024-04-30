@@ -215,7 +215,7 @@ typedef struct
   }
 
 #define DESCRIPTOR_A(name, len, type, ptr, arsize) \
-  ARRAY(char)                                      \
+  mdsdsc_a_t                                       \
   name = {(length_t)len, type, CLASS_A, (char *)ptr, 0, 0, {0, 1, 1, 0, 0}, 1, arsize}
 
 #define DESCRIPTOR_A_COEFF(name, len, type, ptr, dimct, arsize) \

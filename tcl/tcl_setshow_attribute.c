@@ -91,8 +91,7 @@ EXPORT int TclShowAttribute(void *ctx, char **error, char **output)
         TdiSortVal(&xd, &xd MDS_END_ARG);
         if (xd.pointer && xd.pointer->class == CLASS_A)
         {
-          typedef ARRAY(char) ARRAY_DSC;
-          ARRAY_DSC *array = (ARRAY_DSC *)xd.pointer;
+          mdsdsc_a_t *array = (mdsdsc_a_t *)xd.pointer;
           char *name = array->pointer;
           *output = strdup("Defined attributes for this node:\n");
           for (name = array->pointer; name < array->pointer + array->arsize;

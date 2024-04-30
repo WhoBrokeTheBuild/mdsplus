@@ -151,7 +151,6 @@ inline static void endianTransfer(const char *buffer_in, const size_t size,
 #endif
 #define swap_inplace(dir, type, buf, param) dir##type(&buf, &(param))
 
-typedef ARRAY_COEFF(char, 8) A_COEFF_TYPE;
 typedef struct vars
 {
   PINO_DATABASE *dblist;
@@ -1036,7 +1035,7 @@ inline static int begin_segment_header(vars_t *vars, mdsdsc_a_t *initialValue)
         return TreeFAILURE; // inconsistent dims
       if (initialValue->dimct > 1)
       {
-        if (memcmp(vars->shead.dims, ((A_COEFF_TYPE *)initialValue)->m,
+        if (memcmp(vars->shead.dims, ((array_coeff *)initialValue)->m,
                    (initialValue->dimct - 1) * sizeof(int)))
           return TreeFAILURE;
       }
@@ -1139,7 +1138,7 @@ static int begin_sinfo(vars_t *vars, mdsdsc_a_t *initialValue,
     if (initialValue->dimct == 1)
       vars->shead.dims[0] = initialValue->arsize / initialValue->length;
     else
-      memcpy(vars->shead.dims, ((A_COEFF_TYPE *)initialValue)->m,
+      memcpy(vars->shead.dims, ((array_coeff *)initialValue)->m,
              initialValue->dimct * sizeof(int));
   }
   vars->shead.next_row = vars->rows_filled;
@@ -1311,11 +1310,11 @@ inline static int check_compress_ts(vars_t *vars, mdsdsc_xd_t *xd_data_ptr,
                                     mdsdsc_a_t *initialValue)
 {
   int length;
-  A_COEFF_TYPE *data_a = (A_COEFF_TYPE *)xd_data_ptr->pointer;
-  A_COEFF_TYPE *dim_a = (A_COEFF_TYPE *)xd_dim_ptr->pointer;
+  array_coeff *data_a = (array_coeff *)xd_data_ptr->pointer;
+  array_coeff *dim_a = (array_coeff *)xd_dim_ptr->pointer;
   int rows = (initialValue->dimct == 1)
                  ? initialValue->arsize / initialValue->length
-                 : ((A_COEFF_TYPE *)initialValue)->m[initialValue->dimct - 1];
+                 : ((array_coeff *)initialValue)->m[initialValue->dimct - 1];
   if (data_a && data_a->class == CLASS_A && data_a->pointer &&
       data_a->arsize >= initialValue->arsize && dim_a &&
       dim_a->class == CLASS_A && dim_a->pointer &&
@@ -1559,7 +1558,7 @@ end:;
 int _TreeXNciPutSegment(void *dbid, int nid, const char *xnci,
                         const int startIdx, mdsdsc_a_t *data)
 {
-  A_COEFF_TYPE *a_coeff = (A_COEFF_TYPE *)data;
+  array_coeff *a_coeff = (array_coeff *)data;
   INIT_VARS;
   CLEANUP_NCI_PUSH;
   DESCRIPTOR_A(data_a, 0, 0, 0, 0); /*CHECK_DATA*/
@@ -1671,18 +1670,12 @@ int _TreeXNciPutTimestampedSegment(void *dbid, int nid, const char *xnci,
   GOTO_IF_NOT_OK(end, open_datafile_write0(vars));
   while (data && data->dtype == DTYPE_DSC)
     data = (mdsdsc_a_t *)data->pointer;
-  DESCRIPTOR_A(data_a, 0, 0, 0, 0);
+  DESCRIPTOR_A(data_a, data->length, data->dtype, data->pointer, data->length);
   if (data && data->class == CLASS_S)
   {
-    data_a.pointer = data->pointer;
-    data_a.length = data->length;
-    data_a.class = CLASS_A;
-    data_a.dtype = data->dtype;
-    data_a.arsize = data->length;
-    data_a.dimct = 1;
     data = (mdsdsc_a_t *)&data_a;
   }
-  A_COEFF_TYPE *a_coeff = (A_COEFF_TYPE *)data;
+  array_coeff *a_coeff = (array_coeff *)data;
   if (data == NULL || data->class != CLASS_A || data->dimct < 1 ||
       data->dimct > 8)
   {
@@ -2693,7 +2686,7 @@ int _TreeXNciPutRow(void *dbid, int nid, const char *xnci, int bufsize,
         }
         else
         {
-          A_COEFF_TYPE *data_c = (A_COEFF_TYPE *)data;
+          array_coeff *data_c = (array_coeff *)data;
           for (i = 0; i < data->dimct; i++)
             initValue.m[i] = data_c->m[i];
           initValue.m[data->dimct] = bufsize;
@@ -3277,7 +3270,7 @@ inline static void resampleArrayDsc(mdsdsc_a_t *inArray, void *outArray,
   resArray = outArray;
   if (nDims > 1)
   {
-    memcpy(dims, ((A_COEFF_TYPE *)inArray)->m, nDims * sizeof(int));
+    memcpy(dims, ((array_coeff *)inArray)->m, nDims * sizeof(int));
     nRows = dims[nDims - 1];
     rowSize = 1;
     for (idx = 0; idx < nDims - 1; idx++)
@@ -3285,7 +3278,7 @@ inline static void resampleArrayDsc(mdsdsc_a_t *inArray, void *outArray,
       rowSize *= dims[idx];
     }
     resArray->dimct = inArray->dimct;
-    memcpy(resArray->m, ((A_COEFF_TYPE *)inArray)->m,
+    memcpy(resArray->m, ((array_coeff *)inArray)->m,
            inArray->dimct * sizeof(int));
   }
   else

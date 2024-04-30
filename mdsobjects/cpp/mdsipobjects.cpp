@@ -680,11 +680,13 @@ TreeNodeThinClient *Connection::getNode(char *path)
 void Connection::registerStreamListener(DataStreamListener *listener,
                                         char *expr, char *tree, int shot)
 {
-  char regExpr[64 + strlen(expr) + strlen(tree)];
-  sprintf(regExpr, "MdsObjectsCppShr->registerListener(\"%s\",\"%s\",val(%d))",
+  size_t regExprSize = 64 + strlen(expr) + strlen(tree);
+  char* regExpr = new char[regExprSize];
+  snprintf(regExpr, regExprSize, "MdsObjectsCppShr->registerListener(\"%s\",\"%s\",val(%d))",
           expr, tree, shot);
 
   AutoData<Data> idData(get(regExpr, NULL, 0));
+  delete[] regExpr;
   int id = idData->getInt();
   listenerV.push_back(listener);
   listenerIdV.push_back(id);
