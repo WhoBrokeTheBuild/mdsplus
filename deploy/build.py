@@ -99,6 +99,7 @@ parser.add_argument(
 try:
     boolean_action = argparse.BooleanOptionalAction
 except:
+    # Hack for python < 3.9
     boolean_action = 'store_true'
 
 parser.add_argument(
@@ -114,6 +115,14 @@ parser.add_argument(
     default=True,
     help='Builds the project in `{--workspace}/build`.'
 )
+
+# Hack for python < 3.9
+if boolean_action == 'store_true':
+    parser.add_argument(
+        '--no-build',
+        action='store_true',
+        default=False,
+    )
 
 parser.add_argument(
     '--clean',
@@ -266,6 +275,11 @@ if args.output_junit and args.junit_suite_name is None:
     else:
         args.junit_suite_name = args.os
 
+# Hack for python < 3.9
+if boolean_action == 'store_true':
+    if args.no_build:
+        args.build = False
+
 # Force --install if --package is specified
 if args.package:
     args.install = True
@@ -361,6 +375,9 @@ def build_command_line():
             if type(value) is bool:
                 if value:
                     cli_args.append(f'--{name}')
+                # elif name in ['configure', 'build', 'test', 'install', 'package']:
+                elif name in ['build']:
+                    cli_args.append(f'--no-{name}')
             else:
                 cli_args.append(f'--{name}={value}')
 
@@ -459,6 +476,7 @@ def do_setup_vscode():
     # Force a reconfigure to generate launch.json targets
     args.configure = True
     cmake_args.append('-DGENERATE_VSCODE_LAUNCH_JSON=ON')
+    # See do_generate_vscode_launch_json() for the running of the 'generate-vscode-launch-json' target
 
     # Update .vscode/settings.json
 
@@ -781,6 +799,19 @@ def do_build():
 
     if result.returncode != 0:
         print('--build failed')
+        exit(1)
+
+def do_generate_vscode_launch_json():
+    global cmake, build_dir
+
+    # Run the custom target to generate .vscode/launch.json
+    result = subprocess.run(
+        [ cmake, '--build', build_dir, '--target', 'generate-vscode-launch-json' ],
+        cwd=build_dir,
+    )
+        
+    if result.returncode != 0:
+        print('--setup-vscode failed')
         exit(1)
 
 def do_test():
@@ -1147,6 +1178,9 @@ else:
 
         if args.build:
             do_build()
+
+        if args.setup_vscode:
+            do_generate_vscode_launch_json()
 
         if args.test:
             do_test()

@@ -21,6 +21,11 @@ set(MDSPLUS_TEST_INDEX 0 CACHE STRING "" FORCE)
 # https://cmake.org/cmake/help/latest/command/add_test.html
 # https://cmake.org/cmake/help/latest/prop_test/ENVIRONMENT_MODIFICATION.html
 #
+if(GENERATE_VSCODE_LAUNCH_JSON AND NOT TARGET generate-vscode-launch-json)
+    add_custom_target(generate-vscode-launch-json)
+    set(LAST_VSCODE_LAUNCH_JSON_TARGET "generate-vscode-launch-json" CACHE INTERNAL "" FORCE)
+endif()
+
 function(mdsplus_add_test)
 
     cmake_parse_arguments(
@@ -147,17 +152,22 @@ function(mdsplus_add_test)
     math(EXPR _index "${_index} + 1")
 
     if(GENERATE_VSCODE_LAUNCH_JSON)
-        message(STATUS "Adding ${_target} to .vscode/launch.json")
+        string(REPLACE "/" "-" _vscode_launch_target "generate-vscode-launch-json-${_target}")
 
-        execute_process(
+        add_custom_target(
+            "${_vscode_launch_target}"
+            COMMENT "Adding ${_target} to .vscode/launch.json"
             COMMAND ${Python_EXECUTABLE} deploy/add-launch-target.py
                 --name "${_target}"
-                --command "${ARGS_COMMAND}"
-                --environment "${_base_env_mods}"
-                --bin "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+                --command "\"${ARGS_COMMAND}\""
+                --environment "\"${_base_env_mods}\""
                 --cwd "${ARGS_WORKING_DIRECTORY}"
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         )
+
+        # We chain the dependencies to force them to run in serial
+        add_dependencies("${LAST_VSCODE_LAUNCH_JSON_TARGET}" "${_vscode_launch_target}")
+        set(LAST_VSCODE_LAUNCH_JSON_TARGET "${_vscode_launch_target}" CACHE INTERNAL "" FORCE)
     endif()
 
     if(ENABLE_VALGRIND AND NOT ARGS_NO_VALGRIND)
