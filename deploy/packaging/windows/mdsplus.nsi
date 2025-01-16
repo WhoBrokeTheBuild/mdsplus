@@ -13,8 +13,6 @@ InstType "Minimal"
 !define ABOUTURL "http://www.mdsplus.org"	# "Publisher" link
 !define INSTALLSOURCE "https://github.com/MDSplus/mdsplus/archive/${BRANCH}_release-${MAJOR}.${MINOR}-${RELEASE}.zip"
 !define INSTALLSIZE 145000			# Install data + safty
-!define MINGWLIB64 /usr/x86_64-w64-mingw32/sys-root/mingw/bin
-!define MINGWLIB32 /usr/i686-w64-mingw32/sys-root/mingw/bin
 !define PTHREADLIB libwinpthread-1.dll
 !define TERMCAPLIB libtermcap-0.dll
 !define DLLIB libdl.dll
@@ -29,6 +27,12 @@ InstType "Minimal"
 !define ZLIB1_LIB zlib1.dll
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\MDSplus"
 
+!if ${ARCH} == "x64" ; 64 bit install
+    !define MINGWLIB /usr/x86_64-w64-mingw32/sys-root/mingw/bin
+!else ; 32 bit install
+    !define MINGWLIB /usr/i686-w64-mingw32/sys-root/mingw/bin
+!endif
+
 !define TEMP_DEL_DIR "$WINDIR\Temp\MDSplus_uninstall_relicts.delete_me"
 
 !define MDSPLUS_DIR			"$INSTDIR"
@@ -37,6 +41,7 @@ InstType "Minimal"
 !define PYTHONPATH			"$INSTDIR\python"
 !define main_path			"$INSTDIR\trees"
 !define subtree_path		"$INSTDIR\trees\subtree"
+!define BINDIR				"$INSTDIR\bin"
 
 ;;allows admins to decide if the want to install for current or allusers
 !define MULTIUSER_EXECUTIONLEVEL Highest
@@ -65,7 +70,6 @@ ${UnStrTrimNewLines}  ; implements ${UnStrTrimNewLines}
 !include in_operator.nsh	; define in
 !include is_operator.nsh	; define is
 !include registry.nsh		; define AllUsers, registry and env add/remove
-!include getbindir.nsh		; define GetBinDir
 !include filelowerext.nsh	; FileLowerExt
 
 ;; MUI2 include and definitions determine the design of the installer
@@ -186,25 +190,22 @@ Function install_core_pre
 FunctionEnd
 
 Function install_core_post
-	Push $R0
 	${AddToEnv} MDS_PATH	"${MDS_PATH}"
 	${WriteEnv} MDSPLUS_DIR	"${MDSPLUS_DIR}"
 	!insertmacro MUI_STARTMENU_WRITE_BEGIN Application
 	CreateDirectory "$SMPROGRAMS\$StartMenuFolder"
-	${GetBinDir} $R0
 	${If} for AllUsers ?
 		CreateDirectory "$SMPROGRAMS\$StartMenuFolder\DataServer"
-		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Install mdsip action server on port 8100.lnk" "$R0\mdsip_service.exe" "-i -s -p 8100 -h $\"C:\multi.hosts$\""
-		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Install mdsip data server on port 8000.lnk" "$R0\mdsip_service.exe" "-i -p 8000 -h $\"C:\mdsip.hosts$\""
-		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Remove mdsip server on port 8100.lnk" "$R0\mdsip_service.exe" "-r -p 8100"
-		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Remove mdsip server on port 8000.lnk" "$R0\mdsip_service.exe" "-r -p 8000"
+		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Install mdsip action server on port 8100.lnk" "${BINDIR}\mdsip_service.exe" "-i -s -p 8100 -h $\"C:\multi.hosts$\""
+		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Install mdsip data server on port 8000.lnk" "${BINDIR}\mdsip_service.exe" "-i -p 8000 -h $\"C:\mdsip.hosts$\""
+		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Remove mdsip server on port 8100.lnk" "${BINDIR}\mdsip_service.exe" "-r -p 8100"
+		CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\DataServer\Remove mdsip server on port 8000.lnk" "${BINDIR}\mdsip_service.exe" "-r -p 8000"
 	${EndIf}
-	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\ActLog.lnk" "$R0\actlog.exe"  "" "$R0\actlog.exe"  0
-	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\TDI.lnk"    "$R0\tdic.exe" "" "$R0\tdic.exe" 0
-	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\TCL.lnk"    "$R0\mdsdcl.exe" `-prep "set command tcl_commands -history=.tcl"` "$R0\tcl_commands.dll" 0
+	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\ActLog.lnk" "${BINDIR}\actlog.exe"  "" "${BINDIR}\actlog.exe"  0
+	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\TDI.lnk"    "${BINDIR}\tdic.exe" "" "${BINDIR}\tdic.exe" 0
+	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\TCL.lnk"    "${BINDIR}\mdsdcl.exe" `-prep "set command tcl_commands -history=.tcl"` "${BINDIR}\tcl_commands.dll" 0
 ;	CreateShortCut  "$SMPROGRAMS\$StartMenuFolder\View ChangeLog.lnk" "$INSTDIR\ChangeLog.rtf"
 	!insertmacro MUI_STARTMENU_WRITE_END
-	Pop $R0
 FunctionEnd
 
 !define binexclude "/x *.a /x *.lib /x build_test.exe /x mdsiptest.exe"
@@ -212,91 +213,31 @@ SectionGroup "!core" core
 
  	Section "binaries" bin
 
-	!if ${ARCH} == "win64" ; 64 bit install
-
-		Push $R0
-		Push $R1
-		Push $R2
-		SectionIn RO
 		Call install_core_pre
-		; SetOutPath "${BINDIR64}"
-		SetOutPath "$INSTDIR\bin"
-		File ${binexclude} "bin_x86_64/*"
-		File ${MINGWLIB64}/${PTHREADLIB}
-		File ${MINGWLIB64}/${DLLIB}
-		File ${MINGWLIB64}/${READLINELIB}
-		File ${MINGWLIB64}/${TERMCAPLIB}
-		File ${MINGWLIB64}/${GCC_STDCPP_LIB}
-		File ${MINGWLIB64}/${GCC_S_SEH_LIB}
-		File ${MINGWLIB64}/${GFORTRAN_LIB}
-		File ${MINGWLIB64}/${QUADMATH_LIB}
-		File ${MINGWLIB64}/${LIBXML2_LIB}
-		File ${MINGWLIB64}/${ICONV_LIB}
-		File ${MINGWLIB64}/${ZLIB1_LIB}
-		${DisableX64FSRedirection}
-		; ${If} for AllUsers ?
-		; 	FileOpen $R0 "$INSTDIR\uninstall.dat" w
-		; 	${InstallFiles} "${BINDIR64}" "$SYSDIR" $R0
-		; 	FileClose $R0
-		; 	SetOutPath "$INSTDIR"  ; avoid access to ${BINDIR64} so it may be deleted
-		; 	RMDir "${BINDIR64}"
-		; ${EndIf}
-		${EnableX64FSRedirection}
-			Call install_core_post
-		Pop $R2
-		Pop $R1
-		Pop $R0
 
-	!else ; 32 bit install
+		SetOutPath ${BINDIR}
+		File ${binexclude} "bin/*"
 
-		Push $R0
-		Push $R1
-		Push $R2
-		Push $R3
-		Call install_core_pre
-		; SetOutPath "${BINDIR32}"
-		SetOutPath "$INSTDIR\bin"
-		File ${binexclude} "bin_x86/*"
-		File ${MINGWLIB32}/${PTHREADLIB}
-		File ${MINGWLIB32}/${DLLIB}
-		File ${MINGWLIB32}/${READLINELIB}
-		File ${MINGWLIB32}/${TERMCAPLIB}
-		File ${MINGWLIB32}/${GCC_STDCPP_LIB}
-		File ${MINGWLIB32}/${GCC_S_DW2_LIB}
-		File ${MINGWLIB32}/${GFORTRAN_LIB}
-		File ${MINGWLIB32}/${QUADMATH_LIB}
-		File ${MINGWLIB32}/${LIBXML2_LIB}
-		File ${MINGWLIB32}/${ICONV_LIB}
-		File ${MINGWLIB32}/${ZLIB1_LIB}
-		; ${IF} for AllUsers ?
-		; 	${If} ${RunningX64}
-		; 		FileOpen $R0 "$INSTDIR\uninstall.dat" a
-		; 		FileSeek $R0 0 END
-		; 		${InstallFiles} "${BINDIR32}" "$WINDIR\SysWOW64" $R0
-		; 	${Else}
-		; 		FileOpen $R0 "$INSTDIR\uninstall.dat" w
-		; 		${InstallFiles} "${BINDIR32}" "$SYSDIR" $R0
-		; 	${EndIf}
-		; 	FileClose $R0
-		; 	SetOutPath "$INSTDIR"	; avoid access to ${BINDIR32} so it may be deleted
-		; 	RMDir "${BINDIR32}"
-		; ${EndIf}
+		File ${MINGWLIB}/${PTHREADLIB}
+		File ${MINGWLIB}/${DLLIB}
+		File ${MINGWLIB}/${READLINELIB}
+		File ${MINGWLIB}/${TERMCAPLIB}
+		File ${MINGWLIB}/${GCC_STDCPP_LIB}
+		File ${MINGWLIB}/${GCC_S_SEH_LIB}
+		File ${MINGWLIB}/${GFORTRAN_LIB}
+		File ${MINGWLIB}/${QUADMATH_LIB}
+		File ${MINGWLIB}/${LIBXML2_LIB}
+		File ${MINGWLIB}/${ICONV_LIB}
+		File ${MINGWLIB}/${ZLIB1_LIB}
+
 		Call install_core_post
-		Pop $R3
-		Pop $R2
-		Pop $R1
-		Pop $R0
 
-	!endif
 	SectionEnd
 
 	Section "add to PATH" appendpath
-		Push $R0
 		${IfNot} for AllUsers ?
-			${GetBinDir} $R0
-			${AddToEnv} "PATH" "$R0"
+			${AddToEnv} "PATH" "${BINDIR}"
 		${EndIf}
-		Pop $R0
 	SectionEnd
 
 SectionGroupEnd ; core
@@ -365,14 +306,11 @@ Section "java tools" java
 	File icons/jscope.ico
 	File icons/jtraverser.ico
 	File icons/jtraverser2.ico
-	Push $R0
-	${GetBinDir} $R0
 	!insertmacro MUI_STARTMENU_WRITE_BEGIN Application
-		CreateShortCut "$SMPROGRAMS\$StartMenuFolder\jScope.lnk"      "$R0\jScope.bat"		""	"$INSTDIR\java\jscope.ico"	0 SW_SHOWMINIMIZED
-		CreateShortCut "$SMPROGRAMS\$StartMenuFolder\jTraverser.lnk"  "$R0\jTraverser.bat"	""	"$INSTDIR\java\jtraverser.ico"	0 SW_SHOWMINIMIZED
-		CreateShortCut "$SMPROGRAMS\$StartMenuFolder\jTraverser2.lnk" "$R0\jTraverser2.bat"	""	"$INSTDIR\java\jtraverser2.ico"	0 SW_SHOWMINIMIZED
+		CreateShortCut "$SMPROGRAMS\$StartMenuFolder\jScope.lnk"      "${BINDIR}\jScope.bat"		""	"$INSTDIR\java\jscope.ico"	0 SW_SHOWMINIMIZED
+		CreateShortCut "$SMPROGRAMS\$StartMenuFolder\jTraverser.lnk"  "${BINDIR}\jTraverser.bat"	""	"$INSTDIR\java\jtraverser.ico"	0 SW_SHOWMINIMIZED
+		CreateShortCut "$SMPROGRAMS\$StartMenuFolder\jTraverser2.lnk" "${BINDIR}\jTraverser2.bat"	""	"$INSTDIR\java\jtraverser2.ico"	0 SW_SHOWMINIMIZED
 	!insertmacro MUI_STARTMENU_WRITE_END
-	Pop $R0
 SectionEnd ; java
 
 SectionGroup /e "!APIs" apis
@@ -470,18 +408,18 @@ SectionGroup development devel
  SectionGroup devtools devtools
   Section MinGW mingw
 	SectionIn 2
-	!if ${ARCH} == "win64" ; 64 bit install
-		${FileLowerExt} bin_x86_64 .dll.a "$INSTDIR\devtools\mingw\lib64" .lib
+	!if ${ARCH} == "x64" ; 64 bit install
+		${FileLowerExt} bin .dll.a "$INSTDIR\devtools\mingw\lib64" .lib
 	!else ; 32 bit install
-		${FileLowerExt} bin_x86 .dll.a "$INSTDIR\devtools\mingw\lib32" .lib
+		${FileLowerExt} bin .dll.a "$INSTDIR\devtools\mingw\lib32" .lib
 	!endif
   SectionEnd ; MinGW
   Section "Visual Studio" vs
 	SectionIn 2
-	!if ${ARCH} == "win64" ; 64 bit install
-		${FileLowerExt} bin_x86_64 .lib "$INSTDIR\devtools\visual_studio\lib64" .lib
+	!if ${ARCH} == "x64" ; 64 bit install
+		${FileLowerExt} bin .lib "$INSTDIR\devtools\visual_studio\lib64" .lib
 	!else ; 32 bit install
-		${FileLowerExt} bin_x86 .lib "$INSTDIR\devtools\visual_studio\lib32" .lib
+		${FileLowerExt} bin .lib "$INSTDIR\devtools\visual_studio\lib32" .lib
 	!endif
   SectionEnd ; Visual Studio
  SectionGroupEnd ; devtools
@@ -739,8 +677,7 @@ Section uninstall
 		RmDir /r /REBOOTOK "${TEMP_DEL_DIR}"
 		Delete uninstall.dat
 	${Else}
-		${GetBinDir} $R0
-		${RemoveFromEnv}	PATH		"$R0"
+		${RemoveFromEnv} PATH "${BINDIR}"
 	${EndIf}
 	!insertmacro MUI_STARTMENU_GETFOLDER Application $StartMenuFolder
 	RMDir /r "$SMPROGRAMS\$StartMenuFolder"
@@ -749,7 +686,7 @@ Section uninstall
 	${RemoveFromEnv}	main_path		"${main_path}"
 	${RemoveFromEnv}	subtree_path		"${subtree_path}"
 	${RemoveFromEnv}	PYTHONPATH		"${PYTHONPATH}"
-	${RemoveFromEnv}        MDS_PYDEVICE_PATH	"${MDS_PYDEVICE_PATH}"
+	${RemoveFromEnv}	MDS_PYDEVICE_PATH	"${MDS_PYDEVICE_PATH}"
 	${DeleteKey} "${UNINSTALL_KEY}"
 	SetOutPath "$SYSDIR" ; avoid access to $INSTDIR so it may be deleted
 	${TryRecycle} "$INSTDIR"

@@ -227,16 +227,11 @@ mdsplus_option(
     DEFAULT OFF
 )
 
-set(_enable_java_default ON)
-if(WIN32)
-    set(_enable_java_default OFF)
-endif()
-
 # replaces --disable-java
 mdsplus_option(
     ENABLE_JAVA BOOL
     "Build java libraries and applications."
-    DEFAULT ${_enable_java_default}
+    DEFAULT ON
 )
 
 # (SLW) TODO
@@ -426,15 +421,9 @@ set(CMAKE_INSTALL_BINDIR bin)
 set(CMAKE_INSTALL_LIBDIR lib)
 
 if(PLATFORM STREQUAL "windows")
-    # Windows requires the arch appended to bin, e.g. bin_x86, bin_x86_64
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(_arch x86_64)
-    else()
-        set(_arch x86)
-    endif()
 
-    set(CMAKE_INSTALL_BINDIR bin_${_arch})
-    set(CMAKE_INSTALL_LIBDIR bin_${_arch})
+    # Windows does not differentiate between lib/ and bin/
+    set(CMAKE_INSTALL_LIBDIR ${CMAKE_INSTALL_BINDIR})
 
 elseif(PLATFORM STREQUAL "redhat")
     # Redhat requires the bits appended to lib and bin, e.g. lib32, bin64
