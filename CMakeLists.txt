@@ -542,6 +542,10 @@ else()
         LANGUAGES C CXX
     )
 
+    # We assume signed char everywhere
+    # TODO: Remove once all char's have been updated
+    mdsplus_add_compiler_flags(-fsigned-char)
+
     # Disable warnings for argument type mismatches in Fortran
     # TODO: Investigate why both are needed
     mdsplus_check_add_flags(
