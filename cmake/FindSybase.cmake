@@ -38,7 +38,7 @@ find_library(
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
     Sybase
-    REQUIRED_VARS 
+    REQUIRED_VARS
         Sybase_LIBRARIES
         Sybase_INCLUDE_DIRS
 )
@@ -48,7 +48,7 @@ if(Sybase_FOUND)
     if(NOT TARGET Sybase::Sybase)
 
         add_library(Sybase::Sybase INTERFACE IMPORTED)
-        
+
         set_target_properties(
             Sybase::Sybase
             PROPERTIES

@@ -46,15 +46,16 @@ find_package_handle_standard_args(
     REQUIRED_VARS # The first one is displayed in the message
         DC1394_dc1394_LIBRARY
         DC1394_INCLUDE_DIRS
-        DC1394_raw1394_LIBRARY
+        # (SLW) This is apparently not required to build
+        # DC1394_raw1394_LIBRARY
 )
 
 if(DC1394_FOUND)
 
-    set(DC1394_LIBRARIES
-        ${DC1394_dc1394_LIBRARY}
-        ${DC1394_raw1394_LIBRARY}
-    )
+    set(DC1394_LIBRARIES ${DC1394_dc1394_LIBRARY})
+    if (DC1394_raw1394_LIBRARY)
+        list(APPEND DC1394_LIBRARIES ${DC1394_raw1394_LIBRARY})
+    endif()
 
     if(NOT TARGET DC1394::DC1394)
 
@@ -68,7 +69,7 @@ if(DC1394_FOUND)
         )
 
     endif()
-    
+
 endif()
 
 mark_as_advanced(

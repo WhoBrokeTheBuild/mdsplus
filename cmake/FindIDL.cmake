@@ -35,7 +35,7 @@ if(IDL_FOUND)
     if(NOT TARGET IDL::IDL)
 
         add_library(IDL::IDL INTERFACE IMPORTED)
-        
+
         set_target_properties(
             IDL::IDL PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES "${IDL_INCLUDE_DIRS}"

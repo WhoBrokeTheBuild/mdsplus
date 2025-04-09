@@ -130,9 +130,9 @@ if(Motif_FOUND)
                 INTERFACE_LINK_LIBRARIES "${Motif_LIBRARIES}"
                 INTERFACE_INCLUDE_DIRECTORIES "${Motif_INCLUDE_DIRS}"
         )
-        
+
     endif()
-    
+
 endif()
 
 mark_as_advanced(

@@ -51,7 +51,7 @@ find_library(
     NAMES globus_common
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -60,7 +60,7 @@ find_library(
     NAMES globus_gridmap_callout_error
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -69,7 +69,7 @@ find_library(
     NAMES globus_gss_assist
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -78,7 +78,7 @@ find_library(
     NAMES globus_gssapi_error
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -87,7 +87,7 @@ find_library(
     NAMES globus_gssapi_gsi
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -96,7 +96,7 @@ find_library(
     NAMES globus_xio
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -105,7 +105,7 @@ find_library(
     NAMES globus_xio_gsi_driver
     PATHS 
         ${_Globus_PC_LIBRARY_DIRS}
-    PATH_SUFFIXES 
+    PATH_SUFFIXES
         lib
 )
 
@@ -140,12 +140,12 @@ if(Globus_FOUND)
         add_library(Globus::Globus INTERFACE IMPORTED)
 
         set_target_properties(
-            Globus::Globus 
+            Globus::Globus
             PROPERTIES
                 INTERFACE_INCLUDE_DIRECTORIES "${Globus_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${Globus_LIBRARIES}"
         )
-        
+
     endif()
 
 endif()

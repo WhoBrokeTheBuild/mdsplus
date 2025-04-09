@@ -387,6 +387,12 @@ if(IDL_DIR AND NOT ENABLE_IDL)
 
 endif()
 
+mdsplus_option(
+    BUILD_MITDEVICES BOOL
+    "Whether or not to build the mitdevices/ subdirectory"
+    DEFAULT ON
+)
+
 # replaces --with-readline=
 mdsplus_option(
     READLINE_DIR STRING
@@ -416,6 +422,17 @@ mdsplus_option(
     ENABLE_DOXYGEN BOOL
     "Generate doxygen documentation."
     DEFAULT ON
+)
+
+set(_use_libffi_default OFF)
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+    set(_use_libffi_default ON)
+endif()
+
+mdsplus_option(
+    USE_LIBFFI BOOL
+    "Use libffi for calling external functions."
+    DEFAULT ${_use_libffi_default}
 )
 
 ###
@@ -743,6 +760,12 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 ### Dependencies
 ###
 
+# Do not prefer system apple libraries
+# if(APPLE)
+#     set(CMAKE_FIND_FRAMEWORK "LAST")
+#     set(CMAKE_FIND_APPBUNDLE "LAST")
+# endif()
+
 # CMake built-in packages to find
 
 # Do not prefer system apple python
@@ -757,10 +780,10 @@ if(NOT DEFINED Python_EXECUTABLE AND NOT PYTHON STREQUAL "")
     mark_as_advanced(Python_EXECUTABLE)
 endif()
 
-find_package(Python COMPONENTS Interpreter REQUIRED)
+find_package(Python COMPONENTS Interpreter Development.Embed REQUIRED)
 
 # Used to easily determine Python_LIBRARIES
-find_package(Python COMPONENTS Development.Embed)
+# find_package(Python COMPONENTS Development.Embed REQUIRED)
 
 set(PYTHON "${Python_EXECUTABLE}")
 set(PyLib "${Python_LIBRARIES}")
@@ -843,13 +866,21 @@ find_package(LibLZMA)
 find_package(LibM REQUIRED)
 
 # cmake/FindReadline.cmake
-set(Readline_ROOT "${READLINE_DIR}")
-find_package(Readline REQUIRED)
+if(NOT DEFINED Readline_ROOT)
+    set(Readline_ROOT "${READLINE_DIR}")
+endif()
+find_package(Readline 5 REQUIRED)
 
 # cmake/FindDC1394.cmake
 find_package(DC1394)
 
 # Configuration-dependent dependencies
+
+if(USE_LIBFFI)
+    add_compile_definitions(MDSPLUS_USE_FFI)
+
+    find_package(LibFFI REQUIRED)
+endif()
 
 if(ENABLE_MOTIF)
     # cmake/FindMotif.cmake

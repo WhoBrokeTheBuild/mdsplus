@@ -237,7 +237,7 @@ if(MDSplus_FOUND)
         PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES "${MDSplus_INCLUDE_DIRS}"
     )
-    
+
     add_library(MDSplus::MdsShr INTERFACE IMPORTED)
 
     set_target_properties(
@@ -246,7 +246,7 @@ if(MDSplus_FOUND)
             INTERFACE_INCLUDE_DIRECTORIES "${MDSplus_INCLUDE_DIRS}"
             INTERFACE_LINK_LIBRARIES "${MDSplus_MdsShr_LIBRARY}"
     )
-    
+
     add_library(MDSplus::TreeShr INTERFACE IMPORTED)
 
     set_target_properties(
@@ -264,7 +264,7 @@ if(MDSplus_FOUND)
             INTERFACE_INCLUDE_DIRECTORIES "${MDSplus_INCLUDE_DIRS}"
             INTERFACE_LINK_LIBRARIES "${MDSplus_MdsIpShr_LIBRARY};${MDSplus_TdiShr_LIBRARY};${MDSplus_TreeShr_LIBRARY};${MDSplus_MdsShr_LIBRARY}"
     )
-    
+
     add_library(MDSplus::TdiShr INTERFACE IMPORTED)
 
     set_target_properties(
@@ -273,7 +273,7 @@ if(MDSplus_FOUND)
             INTERFACE_INCLUDE_DIRECTORIES "${MDSplus_INCLUDE_DIRS}"
             INTERFACE_LINK_LIBRARIES "${MDSplus_TdiShr_LIBRARY};${MDSplus_TreeShr_LIBRARY};${MDSplus_MdsShr_LIBRARY}"
     )
-    
+
     add_library(MDSplus::MdsLib INTERFACE IMPORTED)
 
     set_target_properties(
@@ -282,7 +282,7 @@ if(MDSplus_FOUND)
             INTERFACE_INCLUDE_DIRECTORIES "${MDSplus_INCLUDE_DIRS}"
             INTERFACE_LINK_LIBRARIES "${MDSplus_MdsLib_LIBRARY};${MDSplus_TdiShr_LIBRARY};${MDSplus_TreeShr_LIBRARY};${MDSplus_MdsShr_LIBRARY}"
     )
-    
+
     add_library(MDSplus::MdsObjectsCppShr INTERFACE IMPORTED)
 
     set_target_properties(

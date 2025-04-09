@@ -98,3 +98,5 @@ vgcore.*
 
 # deploy/trigger.sh output
 trigger.opts
+
+.DS_Store
