@@ -67,7 +67,7 @@ if publish_info['dockerimage'] is None:
 else:
 
     docker_args = [
-        '--tty',
+        '--rm',
         f'--volume={source_dir}:{source_dir}',
         f'--volume={staging_dist_dir}:/release',
         f'--volume={publish_dist_dir}:/publish',
@@ -85,8 +85,6 @@ else:
     result = subprocess.run(
         [
             docker, 'run',
-            '--interactive',
-            '--rm',
         ] + docker_args + docker_entrypoint,
     )
 
