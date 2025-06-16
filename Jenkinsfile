@@ -67,9 +67,9 @@ def packageStage(os) {
     return {
         stage("Build & Package") {
             sh "deploy/build.py -j --os=${os} --build --package -DCMAKE_BUILD_TYPE=Release"
-            dir("workspace-${os}/packages") {
-                sh "ls"
-                stash includes: "*", name: "packages-${os}"
+            dir("workspace-${os}") {
+                stash name: "packages-${os}", includes: "packages"
+                stash name: "dist-${os}", includes: "dist"
             }
         }
     }
@@ -190,7 +190,7 @@ pipeline {
 
                         echo "Calculated new version to be ${new_version}"
 
-                        sh "git tag ${new_tag}"
+                        sh "git tag ${new_tag} || true"
                     }   
                 }
 
@@ -207,17 +207,22 @@ pipeline {
             }
         }
         
-        stage('Test Stash') {
+        stage('Test Publish') {
             steps {
                 script {
                     for (info in OSList) {
                         def (name, os, label) = info
+
                         unstash "packages-${os}"
+                        unstash "dist-${os}"
+
+                        sh "deploy/publish.py --distdir=/opt/fakedist --certdir=/mdsplus/certs --publish-info=dist/mdsplus-publish.json"
                     }
                     
-                    sh "ls"
-                    
-                    archiveArtifacts artifacts: "*.tgz,*.exe", followSymlinks: false
+                    dir("packages") {
+                        sh "ls"
+                        archiveArtifacts artifacts: "*.tgz,*.exe", followSymlinks: false
+                    }
                     
                     cleanWs disableDeferredWipeout: true, deleteDirs: true
                 }
