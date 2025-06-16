@@ -39,6 +39,10 @@ args = parser.parse_args()
 file = open(args.publish_info, 'rt')
 publish_info = json.load(file)
 
+# HACK: Remove once testing on the CMake branch is done
+if publish_info['flavor'] == 'other':
+    publish_info['flavor'] = 'alpha'
+
 docker = shutil.which('docker')
 if docker is None:
     print('Unable to find `docker`')
