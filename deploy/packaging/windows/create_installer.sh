@@ -17,7 +17,6 @@ makensis -V4 -DMAJOR=${major} -DMINOR=${minor} -DRELEASE=${release} -DBNAME=${BN
   -DOUTDIR=${DISTROOT}/${DISTNAME}/${FLAVOR} -Dsrcdir=${srcdir} ${vs} ${srcdir}/deploy/packaging/${PLATFORM}/mdsplus.nsi
 popd
 
-<<<<<<< Updated upstream
 if [ ! -f ${DISTROOT}/${PLATFORM}/${FLAVOR}/MDSplus${BNAME}-${major}.${minor}-${release}-${ARCH}.exe ]; then
   echo "Failed to build installer"
   exit 1
@@ -38,11 +37,6 @@ if [ -d /sign_keys ]; then
   else
     echo "Failed to sign installer"
   fi
-=======
-if [ ! -f ${DISTROOT}/${DISTNAME}/${FLAVOR}/MDSplus${BNAME}-${major}.${minor}-${release}-${ARCH}.exe ]; then
-  echo "Failed to build installer"
-  exit 1
->>>>>>> Stashed changes
 fi
 
 # if [ -d /sign_keys ]; then

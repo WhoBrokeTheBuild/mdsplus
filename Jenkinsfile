@@ -68,8 +68,8 @@ def packageStage(os) {
         stage("Build & Package") {
             sh "deploy/build.py -j --os=${os} --build --package -DCMAKE_BUILD_TYPE=Release"
             dir("workspace-${os}") {
-                stash name: "packages-${os}", includes: "packages"
-                stash name: "dist-${os}", includes: "dist"
+                stash name: "packages-${os}", includes: "packages/**/*"
+                stash name: "dist-${os}", includes: "dist/**/*"
             }
         }
     }
