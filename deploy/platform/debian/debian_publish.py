@@ -32,6 +32,11 @@ args = parser.parse_args()
 # This needs to contain all of the architectures that this platform builds for
 all_arches = [ 'amd64', 'arm64' ]
 
+rsync = shutil.which('rsync')
+if rsync is None:
+    print('Unable to find `rsync`')
+    exit(1)
+
 reprepro = shutil.which('reprepro')
 if reprepro is None:
     print('Unable to find `reprepro`')
@@ -39,7 +44,7 @@ if reprepro is None:
 
 # The /sign_keys directory is mounted read-only from docker, but GPG needs to have read-write access to it
 # for some stupid reason, so we copy .gnupg to /tmp/
-shutil.copytree('/sign_keys/.gnupg', '/tmp/.gnupg')
+result = subprocess.run([rsync, '-a', '/sign_keys/.gnupg', '/tmp'])
 sign_env = os.environ.copy()
 sign_env['HOME'] = '/tmp'
 
@@ -59,7 +64,7 @@ if not os.path.exists(distributions_filename):
         'Origin: MDSplus Development Team',
         'Label: MDSplus',
         'Codename: MDSplus',
-        'Architectures: {}'.format(' '.join(all_arches)),
+        f"Architectures: {' '.join(all_arches)}",
         'Components: alpha stable',
         'Description: MDSplus packages',
         'SignWith: MDSplus',
@@ -86,16 +91,16 @@ for deb in release_deb_filenames:
         env=sign_env
     )
     if result.returncode != 0:
-        print('Failure: Problem installing {} into repository.'.format(deb))
+        print(f'Failure: Problem installing {deb} into repository.')
         exit(1)
 
-publish_deb_dir = os.path.join(publish_component_dir, 'DEBS/{}/'.format(args.arch))
+publish_deb_dir = os.path.join(publish_component_dir, 'DEBS/{args.arch}/')
 os.makedirs(publish_deb_dir, exist_ok=True)
 for deb in release_deb_filenames:
     shutil.copy2(deb, publish_deb_dir)
 
 if not os.path.isdir('/publish/repo'):
-    shutil.copytree('/release/repo', '/publish/repo', dirs_exist_ok=True)
+    subprocess.run([rsync, '-a', '/release/repo', '/publish/'])
 
 shutil.copy2(os.path.join('/release/repo', 'conf/distributions'), os.path.join('/publish/repo', 'conf/'))
 result = subprocess.run(
@@ -118,8 +123,8 @@ if result.returncode != 0:
         env=sign_env,
     )
     if result.returncode != 0:
-        print('Failure: Problem installing {} into debian repository.'.format(args.flavor))
+        print('Failure: Problem installing {args.flavor} into debian repository.')
         exit(1)
 
 # TODO: MDSplus-previous ?
-# last_release_info_filename = '/publish/{}_{}'.format(flavor, os_name)
+# last_release_info_filename = '/publish/{flavor}_{os_name}'

@@ -33,6 +33,11 @@ args = parser.parse_args()
 # This needs to contain all of the architectures that this platform builds for
 all_arches = [ 'x86_64' ] # TODO: 32-bit? ARM?
 
+rsync = shutil.which('rsync')
+if rsync is None:
+    print('Unable to find `rsync`')
+    exit(1)
+
 createrepo = shutil.which('createrepo')
 if createrepo is None:
     print('Unable to find `createrepo`')
@@ -60,7 +65,7 @@ if '--deltas' in result.stdout.decode():
 
 # The /sign_keys directory is mounted read-only from docker, but GPG needs to have read-write access to it
 # for some stupid reason, so we copy .gnupg to /tmp/
-shutil.copytree('/sign_keys/.gnupg', '/tmp/.gnupg')
+result = subprocess.run([rsync, '-a', '/sign_keys/.gnupg', '/tmp'])
 sign_env = os.environ.copy()
 sign_env['HOME'] = '/tmp'
 sign_env['GNUPGHOME'] = '/tmp/.gnupg'
@@ -70,9 +75,7 @@ publish_component_dir = os.path.join('/publish', args.flavor)
 
 os.makedirs(publish_component_dir, exist_ok=True)
 
-def ignore_repodata(src, names):
-    return ['repodata']
-shutil.copytree(release_component_dir, publish_component_dir, ignore=ignore_repodata, dirs_exist_ok=True)
+subprocess.run([rsync, '-a', '--exclude=repodata', f'{release_component_dir}/*', publish_component_dir])
 
 print('Signing packages')
 
@@ -95,7 +98,7 @@ tempdir = tempfile.mkdtemp()
 update_args = []
 repodata_dir = os.path.join(publish_component_dir, 'RPMS/repodata')
 if os.path.isdir(repodata_dir):
-    shutil.copytree(repodata_dir, os.path.join(tempdir, 'repodata'))
+    subprocess.run([rsync, '-a', repodata_dir, tempdir])
     update_args = ['--update', '--cachedir', f'{publish_component_dir}/cache', *deltas_args ]
 
 result = subprocess.run(
@@ -117,4 +120,4 @@ result = subprocess.run(
 )
 # TODO: Error handling?
 
-shutil.copytree(os.path.join(tempdir, 'repodata'), repodata_dir, dirs_exist_ok=True)
+subprocess.run([rsync, '-a', os.path.join(tempdir, 'repodata'), f'{publish_component_dir}/RPMS/'])

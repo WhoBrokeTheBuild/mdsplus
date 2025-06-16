@@ -89,5 +89,5 @@ else:
     )
 
     if result.returncode != 0:
-        print(f'Failed to run `{docker} run --rm -i {" ".join(docker_args)} {docker_entrypoint}` ')
+        print(f'Failed to run `{docker} run {" ".join(docker_args)} {docker_entrypoint}` ')
         exit(1)
