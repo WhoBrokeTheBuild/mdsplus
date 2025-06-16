@@ -69,7 +69,7 @@ def packageStage(os) {
             sh "deploy/build.py -j --os=${os} --build --package -DCMAKE_BUILD_TYPE=Release"
             dir("workspace-${os}") {
                 stash name: "packages-${os}", includes: "packages/**/*"
-                stash name: "dist-${os}", includes: "dist/**/*"
+                stash name: "dist-${os}", includes: "mdsplus-publish.json,dist/**/*"
             }
         }
     }
@@ -216,7 +216,7 @@ pipeline {
                         unstash "packages-${os}"
                         unstash "dist-${os}"
 
-                        sh "deploy/publish.py --distdir=/opt/fakedist --certdir=/mdsplus/certs --publish-info=dist/mdsplus-publish.json"
+                        sh "deploy/publish.py --distdir=/opt/fakedist --certdir=/mdsplus/certs --publish-info=mdsplus-publish.json"
                     }
                     
                     dir("packages") {
