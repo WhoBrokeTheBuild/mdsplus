@@ -210,21 +210,23 @@ pipeline {
         stage('Test Publish') {
             steps {
                 script {
-                    for (info in OSList) {
-                        def (name, os, label) = info
+                    ansiColor('xterm') {
+                        for (info in OSList) {
+                            def (name, os, label) = info
 
-                        unstash "packages-${os}"
-                        unstash "dist-${os}"
+                            unstash "packages-${os}"
+                            unstash "dist-${os}"
 
-                        sh "deploy/publish.py --distdir=/opt/fakedist --certdir=/mdsplus/certs --publish-info=mdsplus-publish.json"
+                            sh "deploy/publish.py --distdir=/opt/fakedist --certdir=/mdsplus/certs --publish-info=mdsplus-publish.json"
+                        }
+                        
+                        dir("packages") {
+                            sh "ls"
+                            archiveArtifacts artifacts: "*.tgz,*.exe", followSymlinks: false
+                        }
+                        
+                        cleanWs disableDeferredWipeout: true, deleteDirs: true
                     }
-                    
-                    dir("packages") {
-                        sh "ls"
-                        archiveArtifacts artifacts: "*.tgz,*.exe", followSymlinks: false
-                    }
-                    
-                    cleanWs disableDeferredWipeout: true, deleteDirs: true
                 }
             }
         }
