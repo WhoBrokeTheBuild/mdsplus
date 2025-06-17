@@ -48,7 +48,7 @@ if docker is None:
 staging_dist_dir = os.path.join(os.getcwd(), 'dist', publish_info['distname'])
 publish_dist_dir = os.path.join(args.distdir, publish_info['distname'])
 
-release_version_filename = os.path.join(staging_dist_dir, f"{publish_info['flavor']}_{publish_info['arch']}_version")
+release_version_filename = os.path.join(publish_dist_dir, f"{publish_info['flavor']}_{publish_info['arch']}_version")
 if os.path.exists(release_version_filename):
     previous_version = open(release_version_filename, 'rt').read().strip()
 
