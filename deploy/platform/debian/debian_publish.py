@@ -84,7 +84,10 @@ if not os.path.exists(distributions_filename):
     # )
 
 release_deb_filenames = glob.glob(os.path.join(release_component_dir, f'DEBS/{args.arch}/*{args.version}_*.deb'))
+print('Release Debs:')
+print(release_deb_filenames)
 for deb in release_deb_filenames:
+    print('Including', deb)
     result = subprocess.run(
         [reprepro, '-V', '-C', args.flavor, 'includedeb', 'MDSplus', deb ],
         cwd='/release/repo',
@@ -109,6 +112,8 @@ result = subprocess.run(
 )
 
 publish_deb_filenames = glob.glob(os.path.join(publish_component_dir, f'DEBS/{args.arch}/*{args.version}_*.deb'))
+print('Publish Debs:')
+print(publish_deb_filenames)
 result = subprocess.run(
     [reprepro, '-V', '--keepunused', '-C', args.flavor, 'includedeb', 'MDSplus', *publish_deb_filenames ],
     cwd='/publish/repo',
