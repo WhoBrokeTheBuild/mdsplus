@@ -84,8 +84,6 @@ if not os.path.exists(distributions_filename):
     # )
 
 release_deb_filenames = glob.glob(os.path.join(release_component_dir, f'DEBS/{args.arch}/*{args.version}_*.deb'))
-print('Release Debs:')
-print(release_deb_filenames)
 for deb in release_deb_filenames:
     print('Including', deb)
     result = subprocess.run(
@@ -97,7 +95,7 @@ for deb in release_deb_filenames:
         print(f'Failure: Problem installing {deb} into repository.')
         exit(1)
 
-publish_deb_dir = os.path.join(publish_component_dir, 'DEBS/{args.arch}/')
+publish_deb_dir = os.path.join(publish_component_dir, f'DEBS/{args.arch}/')
 os.makedirs(publish_deb_dir, exist_ok=True)
 for deb in release_deb_filenames:
     shutil.copy2(deb, publish_deb_dir)
@@ -112,8 +110,6 @@ result = subprocess.run(
 )
 
 publish_deb_filenames = glob.glob(os.path.join(publish_component_dir, f'DEBS/{args.arch}/*{args.version}_*.deb'))
-print('Publish Debs:')
-print(publish_deb_filenames)
 result = subprocess.run(
     [reprepro, '-V', '--keepunused', '-C', args.flavor, 'includedeb', 'MDSplus', *publish_deb_filenames ],
     cwd='/publish/repo',
