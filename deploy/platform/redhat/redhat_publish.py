@@ -75,7 +75,11 @@ publish_component_dir = os.path.join('/publish', args.flavor)
 
 os.makedirs(publish_component_dir, exist_ok=True)
 
-subprocess.run([rsync, '-a', '--exclude=repodata', f'{release_component_dir}/*', publish_component_dir])
+for filename in os.listdir(release_component_dir):
+    if filename == 'repodata':
+        continue
+
+    subprocess.run([rsync, '-a', os.path.join(release_component_dir, filename), publish_component_dir])
 
 print('Signing packages')
 
