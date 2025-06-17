@@ -48,6 +48,19 @@ if docker is None:
 staging_dist_dir = os.path.join(os.getcwd(), 'dist', publish_info['distname'])
 publish_dist_dir = os.path.join(args.distdir, publish_info['distname'])
 
+release_version_filename = os.path.join(staging_dist_dir, f"{publish_info['flavor']}_{publish_info['arch']}_version")
+if os.path.exists(release_version_filename):
+    previous_version = open(release_version_filename, 'rt').read().strip()
+
+    previous_version_tuple = tuple(previous_version.split('.'))
+    current_version_tuple = tuple(publish_info['version'].split('.'))
+
+    # Tuple's can be used to compare versions
+    # e.g. (1, 2, 3) < (1, 3, 0)
+    if previous_version_tuple >= current_version_tuple:
+        print(f'Published version is already {previous_version}, skipping')
+        exit(0)
+
 os.makedirs(publish_dist_dir, exist_ok=True)
 
 # TODO: Detect python3 instead of assuming it?
@@ -91,3 +104,7 @@ else:
     if result.returncode != 0:
         print(f'Failed to run `{docker} run {" ".join(docker_args)} {docker_entrypoint}` ')
         exit(1)
+
+print(f"Updating {release_version_filename} to {publish_info['version']}")
+with open(release_version_filename, 'wt') as release_version_file:
+    release_version_file.write(publish_info['version'] + '\n')

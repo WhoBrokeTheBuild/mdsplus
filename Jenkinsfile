@@ -173,6 +173,9 @@ pipeline {
         stage('Setup') {
             steps {
                 sh 'printenv'
+                
+                // This shouldn't be needed, but just in case
+                cleanWs disableDeferredWipeout: true, deleteDirs: true
 
                 retry(3) {
                     checkout scm;
