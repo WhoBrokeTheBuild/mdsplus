@@ -885,6 +885,9 @@ def do_package():
     # Consider using the actual branch name for flavor instead of "alpha", "stable", or "other"
     if branch in ['alpha', 'stable']:
         flavor = branch
+    # HACK: Remove once testing on the CMake branch is done
+    elif branch == 'cmake':
+        flavor = 'alpha'
     else:
         flavor = 'other'
 
