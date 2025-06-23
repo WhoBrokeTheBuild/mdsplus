@@ -2,6 +2,7 @@
 set(_test_source_list
     TreeDeleteNodeTest.c
     TreeSegmentTest.c
+    TestURLPath.c
 )
 
 foreach(_test_source ${_test_source_list})
@@ -17,6 +18,7 @@ foreach(_test_source ${_test_source_list})
         ${_test_name}
         PRIVATE
             TreeShr
+            TdiShr
             MdsTestShr
     )
 

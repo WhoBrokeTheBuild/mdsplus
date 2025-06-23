@@ -13,6 +13,8 @@ mark_as_advanced(CMAKE_TARGET_MESSAGES)
 
 project(MDSplus)
 
+enable_language(C)
+enable_language(CXX)
 enable_language(Fortran)
 
 set(CMAKE_C_STANDARD 99)
@@ -924,6 +926,9 @@ if(GSI)
     find_package(CURL REQUIRED)
 
 endif()
+
+# For TreeShr URL paths
+find_package(CURL REQUIRED)
 
 if(BUILD_TESTING)
 

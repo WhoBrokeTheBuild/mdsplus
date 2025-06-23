@@ -38,6 +38,14 @@ import gc as _gc
 import os as _os
 import sys as _sys
 import time as _time
+
+import io
+import tempfile
+import requests
+import datetime
+import tarfile
+import shutil
+
 #### Load base python modules referenced ###
 #
 _ver = _mimport('version')
@@ -512,6 +520,165 @@ class Tree(object):
             if not self.path is None:
                 old_path = _mds.getenv(env_name)
                 _mds.setenv(env_name, self.path)
+
+            saved_env = _os.environ.copy()
+
+            if env_name not in _os.environ:
+                env_name = 'default_tree_path'
+
+            if not self._tmpdir:
+                self._tmpdir = tempfile.mkdtemp(prefix='mdsplus-')
+                print(self._tmpdir)
+
+            _os.environ['default_tree_path'] = self._tmpdir + ';' + _os.environ.get('default_tree_path', default='')
+
+            path = _os.environ[env_name]
+            parts = path.split(';')
+            for i, part in enumerate(parts):
+                if '://' in part:
+
+                    start = datetime.datetime.now()
+
+                    tree_name = self.tree.lower()
+                    shot_name = str(self.shot) if self.shot >= 0 else 'model'
+                    
+                    base_url = part
+                    if base_url[-1] != '/':
+                        base_url += '/'
+
+                    shot_str = '%012u' % self.shot
+                    for i, c in enumerate('abcdefghij'):
+                        base_url = base_url.replace(f'~{c}', shot_str[-(i + 1)])
+                    
+                    base_url = base_url.replace('~t', tree_name)
+                    # ~n ???
+                    
+                    listing_url = base_url + f'{tree_name}_{shot_name}.listing'
+                    print(listing_url)
+
+                    # from multiprocessing.pool import ThreadPool
+                    # try:
+                    #     listing = requests.get(listing_url)
+                    #     if listing.ok:
+                    #         filenames = listing.content.decode().splitlines()
+
+                    #         def save_tree_archive(filename):
+                    #             download_start = datetime.datetime.now()
+                    #             response = requests.get(base_url + filename)
+                    #             if response.ok:
+                    #                 fake_tarfile = io.BytesIO(response.content)
+                    #                 tar = tarfile.open(mode='r', fileobj=fake_tarfile)
+                    #                 tar.extractall(path=self._tmpdir, filter='data' )
+
+                    #             download_end = datetime.datetime.now()
+                    #             print(f'Downloading {filename} took {download_end - download_start}')
+
+                    #             filename_tree_name = filename.removesuffix(f'_{shot_name}.tgz')
+                    #             filename_env = f'{filename_tree_name}_path'
+                    #             print(f'Setting {filename_env}')
+                    #             _os.environ[filename_env] = self._tmpdir + ';' + _os.environ.get(filename_env, default='')
+
+                    #         results = ThreadPool(_os.cpu_count() - 1).map_async(save_tree_archive, filenames)
+                    #         for i in range(len(filenames)):
+                    #             results.get()
+
+                    # except Exception as e:
+                    #     print(e)
+                    #     pass
+
+                    # try:
+                    #     listing = requests.get(listing_url)
+                    #     if listing.ok:
+                    #         filenames = listing.content.decode().splitlines()
+
+                    #         for filename in filenames:
+                    #             download_start = datetime.datetime.now()
+                    #             response = requests.get(base_url + filename)
+                    #             if response.ok:
+                    #                 fake_tarfile = io.BytesIO(response.content)
+                    #                 tar = tarfile.open(mode='r', fileobj=fake_tarfile)
+                    #                 tar.extractall(path=self._tmpdir, filter='data' )
+
+                    #             download_end = datetime.datetime.now()
+                    #             print(f'Downloading {filename} took {download_end - download_start}')
+
+                    #             filename_tree_name = filename.removesuffix(f'_{shot_name}.tgz')
+                    #             filename_env = f'{filename_tree_name}_path'
+                    #             print(f'Setting {filename_env}')
+                    #             _os.environ[filename_env] = self._tmpdir + ';' + _os.environ.get(filename_env, default='')
+
+                    # except Exception as e:
+                    #     print(e)
+                    #     pass
+
+                    # try:
+                    #     archive_url = base_url + f'default_tree_{shot_name}.tgz'
+                    #     print(f'Downloading {archive_url}')
+                    #     archive = requests.get(archive_url)
+                    #     if archive.ok:
+
+                    #         fake_tarfile = io.BytesIO(archive.content)
+                    #         tar = tarfile.open(mode='r', fileobj=fake_tarfile)
+                            
+                    #         tar.extractall(path=self._tmpdir, filter='data' )
+
+                    # except Exception as e:
+                    #     print(e)
+                    #     pass
+
+                    # # from multiprocessing.pool import ThreadPool
+                    # # try:
+                    # #     listing = requests.get(listing_url)
+                    # #     if listing.ok:
+                    # #         filenames = listing.content.decode().splitlines()
+
+                    # #         def save_tree_file(filename):
+                    # #             download_start = datetime.datetime.now()
+                    # #             response = requests.get(base_url + filename)
+                    # #             if response.ok:
+                    # #                 with open(_os.path.join(self._tmpdir, filename), 'wb') as file:
+                    # #                     file.write(response.content)
+                    # #             download_end = datetime.datetime.now()
+                    # #             print(f'Downloading {filename} took {download_end - download_start}')
+                    # #             return True
+
+                    # #         results = ThreadPool(10).map_async(save_tree_file, filenames)
+                    # #         for i in range(len(filenames)):
+                    # #             results.get()
+
+                    # # except Exception as e:
+                    # #     print(e)
+                    # #     pass
+
+                    try:
+                        listing = requests.get(listing_url)
+                        if listing.ok:
+                            filenames = listing.content.decode().splitlines()
+
+                            for filename in filenames:
+                                download_start = datetime.datetime.now()
+                                response = requests.get(base_url + filename)
+                                if response.ok:
+                                    with open(_os.path.join(self._tmpdir, filename), 'wb') as file:
+                                        file.write(response.content)
+                                download_end = datetime.datetime.now()
+                                print(f'Downloading {filename} took {download_end - download_start}')
+
+                                if filename.endswith('.tree'):
+                                    filename_tree_name = filename.removesuffix(f'_{shot_name}.tree')
+                                    filename_env = f'{filename_tree_name}_path'
+                                    print(f'Setting {filename_env}')
+                                    _os.environ[filename_env] = self._tmpdir + ';' + _os.environ.get(filename_env, default='')
+
+                    except Exception as e:
+                        print(e)
+                        pass
+
+                    end = datetime.datetime.now()
+                    print(f'Took {end - start}')
+            
+            # _os.environ[env_name] = ';'.join(parts)
+
             mode = mode.upper()
             if mode == 'NORMAL':
                 status = _TreeShr._TreeOpen(self.pctx,
@@ -544,6 +711,10 @@ class Tree(object):
                 self.tree = self.name
                 self.shot = self.shotid
         finally:
+            if saved_env:
+                _os.environ.clear()
+                for key, value in saved_env.items():
+                    _os.environ[key] = value
             if not self.path is None:
                 _mds.setenv(env_name, old_path)
 
@@ -559,6 +730,7 @@ class Tree(object):
         @param mode: Optional mode, one of 'Normal','Edit','New','Readonly'
         @type mode: str
         """
+        self._tmpdir = None
         self.public = tree is None
         if not self.public:
             if path is not None:
@@ -575,6 +747,9 @@ class Tree(object):
         return self
 
     def __del__(self):
+        if self._tmpdir:
+            print(f'Cleaning up {self._tmpdir}')
+            shutil.rmtree(self._tmpdir)
         if not self.public and _TreeShr is not None:
             self.__exit__()
             _TreeShr.TreeFreeDbid(self._ctx)

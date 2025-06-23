@@ -35,6 +35,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <strroutines.h>
 #include <treeshr.h>
 
+#include <curl/curl.h>
+
 #include <mdsplus/mdsconfig.h>
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
@@ -195,6 +197,76 @@ static void free_top_db(PINO_DATABASE **dblist)
   }
 }
 
+struct TreeFileListing
+{
+  char * buffer;
+  size_t size;
+};
+
+struct TreeFileListingEntry
+{
+  char * url;
+  char * filename;
+};
+
+static size_t _readTreeFileListingChunk(void * chunk, size_t size, size_t count, void * user_data)
+{
+  size_t chunk_size = size * count;
+  struct TreeFileListing * listing = (struct TreeFileListing *)user_data;
+  char * new_buffer = realloc(listing->buffer, listing->size + chunk_size + 1);
+  if (!new_buffer) {
+    fprintf(stderr, "OOM\n");
+    return 0;
+  }
+
+  listing->buffer = new_buffer;
+  memcpy(listing->buffer + listing->size, chunk, chunk_size);
+  listing->size += chunk_size;
+  listing->buffer[listing->size] = '\0';
+
+  return chunk_size;
+}
+
+static void downloadTreeFileListing(struct TreeFileListing * listing, char * url)
+{
+  CURL * curl_handle = curl_easy_init();
+  curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 0L);
+  curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
+  curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, listing);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _readTreeFileListingChunk);
+
+  curl_easy_perform(curl_handle);
+  curl_easy_cleanup(curl_handle);
+}
+
+static void * downloadFileThread(void * user_data)
+{
+  struct TreeFileListingEntry * entry = (struct TreeFileListingEntry *)user_data;
+  
+  CURL * curl_handle = curl_easy_init();
+  curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 0L);
+  curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
+  curl_easy_setopt(curl_handle, CURLOPT_URL, entry->url);
+
+  FILE * fp = fopen(entry->filename, "wb");
+  if (fp) {
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, fwrite);
+  
+    curl_easy_perform(curl_handle);
+
+    fflush(fp);
+    fclose(fp);
+  }
+
+  curl_easy_cleanup(curl_handle);
+
+  printf("Downloaded %s -> %s\n", entry->url, entry->filename);
+
+  return NULL;
+}
+
 EXPORT int _TreeOpen(void **dbid, char const *tree_in, int shot_in,
                      int read_only_flag)
 {
@@ -224,9 +296,119 @@ EXPORT int _TreeOpen(void **dbid, char const *tree_in, int shot_in,
     status = TreeNOCURRENT;
   else
   {
-    char *path = TreePath(tree, 0);
+    char tree_lower[13];
+    char *path = TreePath(tree, tree_lower);
     if (path)
     {
+      // if (strstr(path, "://") != NULL) {
+
+      //   time_t start = time(NULL);
+        
+      //   curl_global_init(CURL_GLOBAL_ALL);
+
+      //   char * path_tmp = strdup(path);
+
+      //   char tmpdir[] = "/tmp/mdsplus-XXXXXX";
+      //   mkdtemp(tmpdir);
+
+      //   char path_env_name[13 + 5 + 1];
+      //   snprintf(path_env_name, sizeof(path_env_name), "%s_path", tree_lower);
+      //   setenv(path_env_name, tmpdir, TRUE);
+      //   printf("$%s = %s\n", path_env_name, tmpdir);
+
+      //   const size_t MAX_TREE_FILENAME_SIZE = sizeof(TREE_NAME) + sizeof("_1234567890.characteristics");
+
+      //   char * saveptr = NULL;
+      //   char * part = strtok_r(path_tmp, ";", &saveptr);
+      //   while (part) {
+
+      //     if (strstr(part, "://") != NULL) {
+      //       printf("part: %s\n", part);
+
+      //       struct TreeFileListing listing = {
+      //         .buffer = NULL,
+      //         .size = 0,
+      //       };
+            
+      //       size_t url_size = strlen(part) + MAX_TREE_FILENAME_SIZE + 1;
+      //       char * url = calloc(1, url_size);
+
+      //       size_t filename_size = strlen(tmpdir) + MAX_TREE_FILENAME_SIZE;
+      //       char * filename = calloc(1, filename_size);
+
+      //       snprintf(url, url_size, "%s/%s_%03d.listing", part, tree_lower, shot);
+            
+      //       printf("Download Listing: %s\n", url);
+      //       downloadTreeFileListing(&listing, url);
+      //       printf("Listing:\n%s\n", listing.buffer);
+
+      //       size_t file_count = 0;
+      //       for (size_t i = 0; i < listing.size; ++i) {
+      //         if (listing.buffer[i] == '\n') {
+      //           ++file_count;
+      //         }
+      //       }
+
+      //       pthread_t * threads = calloc(file_count, sizeof(pthread_t));
+      //       struct TreeFileListingEntry * thread_contexts = calloc(file_count, sizeof(struct TreeFileListingEntry));
+
+      //       size_t thread_count = 0;
+      //       char * saveptr2 = NULL;
+      //       char * entry = strtok_r(listing.buffer, "\n", &saveptr2);
+      //       while (entry) {
+
+      //         if (strstr(entry, ".tree") != NULL) {
+      //           char subtree_name[13];
+
+      //           char * last_underscore = strrchr(entry, '_');
+      //           size_t subtree_name_size = last_underscore - entry;
+      //           memcpy(subtree_name, entry, subtree_name_size);
+      //           subtree_name[subtree_name_size] = '\0';
+  
+      //           snprintf(path_env_name, sizeof(path_env_name), "%s_path", subtree_name);
+      //           setenv(path_env_name, tmpdir, TRUE);
+      //           printf("$%s = %s\n", path_env_name, tmpdir);
+      //         }
+
+      //         snprintf(filename, filename_size, "%s/%s", tmpdir, entry);
+      //         snprintf(url, url_size, "%s/%s", part, entry);
+
+      //         // downloadFile(filename, url);
+      //         thread_contexts[thread_count].filename = strdup(filename);
+      //         thread_contexts[thread_count].url = strdup(url);
+      //         printf("Downloading %s -> %s\n", thread_contexts[thread_count].url, thread_contexts[thread_count].filename);
+      //         // TODO: Handle errors
+      //         pthread_create(&threads[thread_count], NULL, downloadFileThread, &thread_contexts[thread_count]);
+
+      //         entry = strtok_r(NULL, "\n", &saveptr2);
+      //         ++thread_count;
+      //       }
+
+      //       for (size_t i = 0; i < thread_count; ++i) {
+      //         pthread_join(threads[i], NULL);
+      //         free(thread_contexts[i].url);
+      //         free(thread_contexts[i].filename);
+      //       }
+      //       free(thread_contexts);
+      //       free(threads);
+
+      //       free(url);
+      //       free(filename);
+      //       free(listing.buffer);
+      //     }
+
+      //     part = strtok_r(NULL, ";", &saveptr);
+      //   }
+
+      //   curl_global_cleanup();
+
+      //   printf("Make sure to call: `rm -rf %s`\n", tmpdir);
+      //   free(path_tmp);
+
+      //   time_t end = time(NULL);
+      //   printf("Took %lds\n", end - start);
+      // }
+
       PINO_DATABASE **dblist = (PINO_DATABASE **)dbid;
       int db_slot_status = CreateDbSlot(dblist, tree, shot, 0);
       if (db_slot_status == TreeSUCCESS || db_slot_status == TreeALREADY_OPEN)

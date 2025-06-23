@@ -58,6 +58,7 @@ target_link_libraries(
     TreeShr
     PUBLIC
         MdsShr
+        CURL::libcurl
 )
 
 target_compile_definitions(
