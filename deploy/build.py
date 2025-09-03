@@ -63,12 +63,6 @@ parser.add_argument(
     help='The OS definition to use (see below), which will reference `deploy/os/{--os}.opts` for additional parameters to this script and `deploy/os/{--os}.env` for additional environment variables. This will also change the default for --workspace to be `workspace-{--os}/`',
 )
 
-# TODO: Check/Remove
-parser.add_argument(
-    '--toolchain',
-    help='Path to the CMake toolchain file used for cross-compilation. This will be relative to the deploy/toolchains/ directory unless an absolute path is given.'
-)
-
 parser.add_argument(
     '--workspace',
     help='The directory that will contain the default build/install directories and helper scripts, defaults to `workspace/` or `workspace-{--os}/` if --os is specified. This will be relative to the source directory unless an absolute path is given.',
@@ -105,7 +99,6 @@ except:
     # Hack for python < 3.9
     boolean_action = 'store_true'
 
-# TODO: Improve resilience against failed initial configures, maybe add a cache variable called CONFIGURE_DONE and check the cache for that?
 parser.add_argument(
     '--configure',
     action=boolean_action,
@@ -171,6 +164,16 @@ parser.add_argument(
 parser.add_argument(
     '--arch',
     help='The architecture to label packages as. This should be used in conjunction with --toolchain when cross-compiling. Will attempt to autodetect from the current architecture.'
+)
+
+parser.add_argument(
+    '--flavor',
+    help='Used by --package to specify the release flavor, usually "alpha" or "stable". Will default to the prefix of the current git tag, if present. Required if --version is specified.'
+)
+
+parser.add_argument(
+    '--version',
+    help='Used by --package to specify the release version in the format "MAJOR.MINOR.PATCH". Will default to the suffix of the current git tag, if present. Required if --flavor is specified.'
 )
 
 # Testing
@@ -336,27 +339,11 @@ if ctest is None and args.dockerimage is not None:
     print('Unable to find `ctest`')
     exit(1)
 
-# TODO: Don't require git
-git_executable = shutil.which('git')
-if git_executable is None and args.dockerimage is not None:
-    print('Unable to find `git`')
-    exit(1)
-
 # Causes readline to segfault when run through wine
 if 'LC_CTYPE' in os.environ:
     del os.environ['LC_CTYPE']
 
 # Utilities
-
-def git(command):
-    proc = subprocess.Popen(
-        [ git_executable ] + command.split(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT
-    )
-
-    stdout, _ = proc.communicate()
-    return stdout.decode().strip()
 
 def build_command_line():
     global args
@@ -411,6 +398,16 @@ def parse_cmake_cache():
 
 cmake_cache = parse_cmake_cache()
 
+if len(cmake_cache) == 0:
+    # If there is no CMake cache, we need to --configure
+    print('No configure cache present, configuring')
+    args.configure = True
+
+elif 'MDSPLUS_CONFIGURE_COMPLETE' not in cmake_cache:
+    # If we have not successfuly configured at least once, we need to --configure
+    print('Previous configure attempt failed, reconfiguring')
+    args.configure = True
+
 # --fresh tells CMake to disregard the current cache and start over, so we need to do the same
 if '--fresh' in cmake_args:
     cmake_cache = {}
@@ -436,19 +433,26 @@ cmake_args = []
 for arg in cmake_args_unfiltered:
     check_add_cmake_arg(arg)
 
-
-# TODO: If the cache is unfinished, reconfigure. Add some sort of CONFIGURE_DONE variable to check here
-# If there is no CMake cache, we need to --configure
-if not args.configure and len(cmake_cache) == 0:
-    args.configure = True
-
-if args.toolchain is not None:
-    check_add_cmake_arg(f"--toolchain={args.toolchain}")
-
 check_add_cmake_arg(f'-DCMAKE_INSTALL_PREFIX={usr_local_mdsplus_dir}')
 
 if args.platform is not None:
     check_add_cmake_arg(f'-DPLATFORM={args.platform}')
+
+if args.flavor is None and args.version is not None:
+    print('You must specify --flavor when using --version')
+    exit(1)
+elif args.version is None and args.flavor is not None:
+    print('You must specify --version when using --flavor')
+    exit(1)
+
+# If --flavor and --version are specified, inform CMake
+if args.flavor is not None and args.version is not None:
+    release_tag = f'{args.flavor}_release-{"-".join(args.version.split("."))}'
+    check_add_cmake_arg(f'-DRELEASE_TAG={release_tag}')
+else:
+    # If both are missing, clear the cached value from CMake
+    if 'RELEASE_TAG' in cmake_cache:
+        check_add_cmake_arg(f'-DRELEASE_TAG=')
 
 if args.sanitize is not None and args.valgrind is not None:
     print()
@@ -683,14 +687,10 @@ def do_interactive():
     # Start with a clean environment so we don't inherit anything pointing to the system MDSplus installation
     interactive_env = dict()
 
-    if 'HOME' in os.environ:
-        interactive_env['HOME'] = os.environ['HOME']
-
-    if 'TERM' in os.environ:
-        interactive_env['TERM'] = os.environ['TERM']
-
-    if 'DISPLAY' in os.environ:
-        interactive_env['DISPLAY'] = os.environ['DISPLAY']
+    passthrough_env_names = ['HOME', 'TERM', 'DISPLAY', 'XAUTHORITY']
+    for name in passthrough_env_names:
+        if name in os.environ:
+            interactive_env[name] = os.environ[name]
 
     # Override shell prompt to ease confusion
     # \w is the "current working directory"
@@ -873,7 +873,7 @@ def do_install():
         exit(1)
 
 def do_package():
-    global args, packages_dir, dist_dir
+    global args, cmake_cache, packages_dir, dist_dir
 
     os.makedirs(packages_dir, exist_ok=True)
     os.makedirs(dist_dir, exist_ok=True) # mdsplus.org/dist/{--distname}/
@@ -888,34 +888,15 @@ def do_package():
         print('Unable to autodetect --platform, manually specify --platform to use --package')
         exit(1)
 
-    # TODO: Improve
-    release_version = git('describe --tag')
-    print(release_version)
+    if args.flavor is None:
+        args.flavor = cmake_cache.get('RELEASE_BRANCH', 'unknown')
 
-    # TODO: Harden
-    parts = release_version.split('-', maxsplit=4)
-
-    if len(parts) >= 4:
-        branch, major, minor, patch = parts[:4]
-    else:
-        raise Exception(f'Unable to parse release version\n\tRelease Version: {release_version}')
-    
-    branch = branch.replace('_release', '')
-
-    release_version = f'{major}.{minor}.{patch}'
-
-    # Consider using the actual branch name for flavor instead of "alpha", "stable", or "other"
-    if branch in ['alpha', 'stable']:
-        flavor = branch
-    # HACK: Remove once testing on the CMake branch is done
-    elif branch == 'cmake':
-        flavor = 'alpha'
-    else:
-        flavor = 'other'
+    if args.version is None:
+        args.version = cmake_cache.get('RELEASE_VERSION', '0.0.0')
 
     bname = ''
-    if flavor != 'stable':
-        bname = f'-{flavor}'
+    if args.flavor != 'stable':
+        bname = f'-{args.flavor}'
 
     if args.arch is None:
         if args.platform == 'debian':
@@ -942,20 +923,20 @@ def do_package():
     package_env['ARCH'] = args.arch
     package_env['DISTNAME'] = args.distname
     package_env['PLATFORM'] = args.platform
-    package_env['BRANCH'] = branch
-    package_env['FLAVOR'] = flavor
+    package_env['BRANCH'] = args.flavor
+    package_env['FLAVOR'] = args.flavor
     package_env['BNAME'] = bname
-    package_env['RELEASE_VERSION'] = release_version
+    package_env['RELEASE_VERSION'] = args.version
     package_env['BUILDROOT'] = install_dir
     package_env['DISTROOT'] = dist_dir
 
     publish_info = {
-        'flavor': flavor,
+        'flavor': args.flavor,
         'arch': args.arch, # ?
-        'version': release_version,
+        'version': args.version,
         'distname': args.distname,
         'platform': args.platform,
-        'dockerimage': os.environ['DOCKERIMAGE'], # HACK: To determine what docker image we are in to pass to publish.py
+        'dockerimage': os.environ.get('DOCKERIMAGE', None), # HACK: To determine what docker image we are in to pass to publish.py
         'packages': [],
     }
 
@@ -977,7 +958,7 @@ def do_package():
             print('Failed to build debian packages')
             exit(1)
 
-        deb_files = glob.glob(os.path.join(dist_dir, f'**/*{flavor}*_{release_version}*.deb'), recursive=True)
+        deb_files = glob.glob(os.path.join(dist_dir, f'**/*{args.flavor}*_{args.version}*.deb'), recursive=True)
 
         for filename in deb_files:
             publish_info['packages'].append(os.path.relpath(filename, dist_dir))
@@ -998,7 +979,7 @@ def do_package():
                 # mdsplus-alpha-package_bin_1.2.3_amd64.deb -> package_bin
                 reference_filename = os.path.basename(filename)
                 reference_filename = reference_filename.removeprefix(f'mdsplus{bname}-')
-                reference_filename = reference_filename.removesuffix(f'_{release_version}_{args.arch}.deb')
+                reference_filename = reference_filename.removesuffix(f'_{args.version}_{args.arch}.deb')
 
                 if '_bin' in reference_filename:
                     reference_filename += f'.{args.arch}'
@@ -1040,7 +1021,7 @@ def do_package():
                     else:
                         print(f'"{install_filename}" == "{reference_filename}"')
 
-        package_filename = os.path.join(packages_dir, f"mdsplus_{flavor}_{release_version}_{args.distname}_{args.arch}_debs.tgz")
+        package_filename = os.path.join(packages_dir, f"mdsplus_{args.flavor}_{args.version}_{args.distname}_{args.arch}_debs.tgz")
         print(f'Creating {package_filename}')
         
         package_file = tarfile.open(package_filename, 'w:gz')
@@ -1057,14 +1038,18 @@ def do_package():
 
         rpm_gpg_key_url = 'http://www.mdsplus.org/dist/RPM-GPG-KEY-MDSplus'
         rpm_gpg_key_filename = os.path.join(install_dir, 'etc/pki/rpm-gpg/RPM-GPG-KEY-MDSplus')
-        _, result = request.urlretrieve(rpm_gpg_key_url, rpm_gpg_key_filename)
-        # TODO: Error handling?
+
+        try:
+            request.urlretrieve(rpm_gpg_key_url, rpm_gpg_key_filename)
+        except request.HTTPError:
+            print(f'Failed to retrieve "{rpm_gpg_key_url}", unable to create repo package')
+            exit(1)
 
         with open(os.path.join(install_dir, f'etc/yum.repos.d/mdsplus{bname}.repo'), 'wt') as file:
             repo_lines = [
                 f'[MDSplus{bname}]',
                 f'name=MDSplus{bname}',
-                f'baseurl=http://www.mdsplus.org/dist/{args.distname}/{flavor}/RPMS',
+                f'baseurl=http://www.mdsplus.org/dist/{args.distname}/{args.flavor}/RPMS',
                 f'enabled=1',
                 f'gpgcheck=1',
                 f'repo_gpgcheck=1',
@@ -1084,8 +1069,8 @@ def do_package():
             print('Failed to build redhat packages')
             exit(1)
 
-        redhat_package_version = '-'.join(release_version.rsplit('.', maxsplit=1)) # 1.2-3
-        rpm_files = glob.glob(os.path.join(dist_dir, f'**/*{flavor}*-{redhat_package_version}*.rpm'), recursive=True)
+        redhat_package_version = '-'.join(args.version.rsplit('.', maxsplit=1)) # 1.2-3
+        rpm_files = glob.glob(os.path.join(dist_dir, f'**/*{args.flavor}*-{redhat_package_version}*.rpm'), recursive=True)
 
         for filename in rpm_files:
             publish_info['packages'].append(os.path.relpath(filename, dist_dir))
@@ -1126,7 +1111,7 @@ def do_package():
                     else:
                         print(f'"{install_filename}" == "{reference_filename}"')
 
-        package_filename = os.path.join(packages_dir, f"mdsplus_{flavor}_{release_version}_{args.distname}_{args.arch}_rpms.tgz")
+        package_filename = os.path.join(packages_dir, f"mdsplus_{args.flavor}_{args.version}_{args.distname}_{args.arch}_rpms.tgz")
         print(f'Creating {package_filename}')
 
         package_file = tarfile.open(package_filename, 'w:gz')
@@ -1148,8 +1133,8 @@ def do_package():
             print('Failed to build windows installer')
             exit(1)
 
-        exe_version = '-'.join(release_version.rsplit('.', maxsplit=1)) # 1.2-3
-        exe_list = glob.glob(os.path.join(dist_dir, f'**/*{flavor}-{exe_version}*.exe'), recursive=True)
+        exe_version = '-'.join(args.version.rsplit('.', maxsplit=1)) # 1.2-3
+        exe_list = glob.glob(os.path.join(dist_dir, f'**/*{args.flavor}-{exe_version}*.exe'), recursive=True)
         for filename in exe_list:
             publish_info['packages'].append(os.path.relpath(filename, dist_dir))
             shutil.copy(filename, packages_dir)
@@ -1159,7 +1144,7 @@ def do_package():
     with open(publish_info_filename, 'wt') as file:
         file.write(json.dumps(publish_info, indent=2))
 
-    root_package_filename = os.path.join(packages_dir, f"mdsplus_{flavor}_{release_version}_{args.distname}_{args.arch}.tgz")
+    root_package_filename = os.path.join(packages_dir, f"mdsplus_{args.flavor}_{args.version}_{args.distname}_{args.arch}.tgz")
 
     print(f'Creating {root_package_filename}')
     root_package_file = tarfile.open(root_package_filename, 'w:gz')
@@ -1174,7 +1159,6 @@ def do_test():
 
     print('Testing')
 
-    # TODO: Move to testing_dir?
     test_data_filename = os.path.join(args.workspace, 'mdsplus-test.json')
 
     result = subprocess.run(
