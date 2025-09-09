@@ -489,15 +489,14 @@ def do_docker():
         print()
         print(f'Pulling docker image {args.dockerimage}')
 
-        subprocess.run([ docker, 'pull', args.dockerimage ])
-        # TODO: error checking
+        result = subprocess.run([ docker, 'pull', args.dockerimage ])
+        if result.returncode != 0:
+            print(f'Failed to pull docker image {args.dockerimage}')
+            exit(1)
     
     os.makedirs(args.workspace, exist_ok=True)
 
     docker_args = [
-        # Enable colors
-        '--tty', # TODO: Check to make sure *we* have colors enabled
-        
         # Mount the workspace and source directory as absolute paths inside the docker
         f'--volume={args.workspace}:{args.workspace}',
         f'--volume={source_dir}:{source_dir}',
@@ -510,16 +509,18 @@ def do_docker():
         f'--env=DOCKERIMAGE={args.dockerimage}'
     ]
 
+    # Enable colors
+    if sys.stdout.isatty():
+        docker_args.append('--tty')
+
     if args.dockernetwork is not None:
-        subprocess.run([ docker, 'network', 'create', args.dockernetwork ])
-        # TODO: error checking
+        result = subprocess.run([ docker, 'network', 'create', args.dockernetwork ])
+        if result.returncode != 0:
+            print(f'Failed to create docker network {args.dockernetwork}')
+            exit(1)
 
         docker_args.append(f'--network={args.dockernetwork}')
 
-    # TODO: Improve errors from using --user
-    # if platform.system() != 'Windows':
-        # docker_command = f'groupadd -g {os.getgid()} build-group;' + f'useradd -u {os.getuid()} -g build-group -s /bin/bash -d /workspace build-user;' + 'exec su build-user -c "' + docker_command  + '"'
-    
     if platform.system() != 'Windows':
         docker_args.append(f'--user={os.getuid()}:{os.getgid()}')
 
@@ -545,11 +546,19 @@ def do_docker():
 
     passthrough_args.extend(cmake_args)
 
-    # TODO: Detect python3 instead of assuming it?
-    command = f"python3 {os.path.abspath(__file__)} {' '.join(passthrough_args)}"
+    result = subprocess.run(
+        [ docker, 'run', args.dockerimage, '/bin/sh', '-c', 'which python3' ],
+        stdout=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        print(f'Unable to find python3 in {args.dockerimage}')
+        exit(1)
 
-    # TODO: Switch to /bin/sh for maximum compatibility
-    docker_entrypoint = [ '/bin/bash', '-c', command ]
+    docker_python3 = result.stdout.decode().strip()
+    docker_entrypoint = [ docker_python3, os.path.abspath(__file__) ] + passthrough_args
+
+    print('Docker entrypoint:')
+    print(f"    {' '.join(docker_entrypoint)}")
 
     if args.interactive:
 
@@ -667,22 +676,31 @@ def do_interactive():
         file.write(f'{cmake} --install "{build_dir}" "$@"\n')
     os.chmod(do_install_filename, 0o755)
     
-    # TODO: Protect against calling /etc/mdsplus.conf and $HOME/.mdsplus
     setup_filename = os.path.join(args.workspace, 'setup.sh')
     with open(setup_filename, 'wt') as file:
-        file.write(f'export PYTHONPATH=\"{usr_local_mdsplus_dir}/python\"\n')
-        file.write(f'export MDSPLUS_DIR=\"{usr_local_mdsplus_dir}\"\n')
-        file.write('source $MDSPLUS_DIR/setup.sh\n')
+        file.write('\n')
+        file.write('if [ -f /etc/mdsplus.conf ] || [ -f $HOME/.mdsplus ]; then\n')
+        file.write('  echo "Unable to use setup.sh if /etc/mdsplus.conf or $HOME/.mdsplus exists"\n')
+        file.write('else\n')
+        file.write(f'  export PYTHONPATH=\"{usr_local_mdsplus_dir}/python\"\n')
+        file.write(f'  export MDSPLUS_DIR=\"{usr_local_mdsplus_dir}\"\n')
+        file.write('  source $MDSPLUS_DIR/setup.sh\n')
+        file.write('fi\n')
     os.chmod(setup_filename, 0o755)
 
+    # We require bash as it allows us control over $PS1 and --login --noprofile
     shell = '/bin/bash'
-    # TODO: Support other shells?
 
-    # TODO: Check if we support colors
-    reset = '\\e[0m'
-    purple = '\\e[0;35m'
-    green = '\\e[0;32m'
-    turquoise = '\\e[0;36m'
+    if sys.stdout.isatty():
+        reset = '\\e[0m'
+        purple = '\\e[0;35m'
+        green = '\\e[0;32m'
+        turquoise = '\\e[0;36m'
+    else:
+        reset = ''
+        purple = ''
+        green = ''
+        turquoise = ''
 
     # Start with a clean environment so we don't inherit anything pointing to the system MDSplus installation
     interactive_env = dict()
@@ -803,38 +821,22 @@ def do_build():
 
     os.makedirs(build_dir, exist_ok=True)
 
-    # This will work everywhere, but we can't inform the number of concurrent jobs
-    # TODO: Test this w/ clean
     build_command = [ cmake, '--build', build_dir ]
+    build_tool_arguments = []
 
-    # If we know the generator, we can infer the build command
+    # If we know the generator, we can pass arguments to the underlying build tool
     if 'CMAKE_GENERATOR' in cmake_cache:
         generator = cmake_cache['CMAKE_GENERATOR']
 
-        if generator == 'Unix Makefiles':
-            make = shutil.which('make')
-            if make is not None:
-                build_command = [ make, f'-j{args.parallel}' ]
-
-        elif generator == 'Ninja':
-            ninja = shutil.which('ninja')
-            if ninja is not None:
-                build_command = [ ninja, f'-j{args.parallel}' ]
+        if generator == 'Unix Makefiles' or generator == 'Ninja':
+            build_tool_arguments.append(f'-j{args.parallel}')
 
     if args.clean:
-        print('Cleaning')
-        result = subprocess.run(
-            build_command + [ 'clean' ],
-            cwd=build_dir,
-        )
+        build_command.append('--clean-first')
 
-        if result.returncode != 0:
-            print('--clean failed')
-            exit(1)
-
-    print('Building')
+    print(f"Building with {' '.join(build_command)} -- {' '.join(build_tool_arguments)}")
     result = subprocess.run(
-        build_command,
+        build_command + [ '--' ] + build_tool_arguments,
         cwd=build_dir,
     )
 
@@ -1186,8 +1188,7 @@ def do_test():
     test_count = len(test_queue)
 
     running_tests = []
-    passed_tests = {}
-    failed_tests = {}
+    finished_tests = {}
 
     def stop_testing(signum, frame):
         # Clear the test queue
@@ -1213,7 +1214,7 @@ def do_test():
                         old_test = old_tests[test['name']]
                         if old_test['passed']:
                             test_queue.remove(test)
-                            passed_tests[test['name']] = old_test
+                            finished_tests[test['name']] = old_test
         except:
             print(f'Failed to parse {test_data_filename}')
     
@@ -1221,7 +1222,6 @@ def do_test():
     if args.test_regex is not None:
         import re
         test_regex = re.compile(f".*{args.test_regex}.*")
-        # TODO: Error handling
 
     while len(test_queue) > 0 or len(running_tests) > 0:
 
@@ -1251,10 +1251,7 @@ def do_test():
                     'passed': passed,
                 }
 
-                if passed:
-                    passed_tests[test['name']] = test_record
-                else:
-                    failed_tests[test['name']] = test_record
+                finished_tests[test['name']] = test_record
         
         # Take tests from the queue, start them, and add them to running_tests
         while len(test_queue) > 0 and len(running_tests) < int(args.parallel):
@@ -1291,7 +1288,13 @@ def do_test():
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    passed_test_count = len(passed_tests)
+    passed_test_count = 0
+    failed_test_count = 0
+    for name, test in finished_tests.items():
+        if test['passed']:
+            passed_test_count += 1
+        else:
+            failed_test_count += 1
 
     percentage = 0
     if test_count > 0:
@@ -1306,17 +1309,16 @@ def do_test():
     print(f"Took {total_time_test:.3f}s (real {total_time_real:.3f}s)")
     print()
 
-    all_tests = dict(passed_tests, **failed_tests)
-
     with open(test_data_filename, 'wt') as file:
-        file.write(json.dumps(all_tests, indent=2))
+        file.write(json.dumps(finished_tests, indent=2))
 
-    if len(failed_tests) > 0:
+    if failed_test_count > 0:
         print("The following tests failed:")
 
-        for name, test in failed_tests.items():
-            log_filename_escaped = test['log'].replace(' ', '\\ ')
-            print(f"    #{test['index']} {name} ({log_filename_escaped})")
+        for name, test in finished_tests.items():
+            if not test['passed']:
+                log_filename_escaped = test['log'].replace(' ', '\\ ')
+                print(f"    #{test['index']} {name} ({log_filename_escaped})")
 
         print()
         print('You can run only these tests by passing --rerun-failed')
@@ -1326,14 +1328,14 @@ def do_test():
 
         root = xml.Element('testsuites')
         root.attrib['time'] = str(total_time_test)
-        root.attrib['tests'] = str(len(all_tests))
-        root.attrib['failures'] = str(len(failed_tests))
+        root.attrib['tests'] = str(len(finished_tests))
+        root.attrib['failures'] = str(failed_test_count)
 
         testsuite = xml.SubElement(root, 'testsuite')
         testsuite.attrib['time'] = str(total_time_test)
         testsuite.attrib['name'] = args.junit_suite_name
 
-        for test_name, test in all_tests.items():
+        for test_name, test in finished_tests.items():
             testcase = xml.SubElement(testsuite, 'testcase')
             testcase.attrib['name'] = test_name
             testcase.attrib['time'] = str(test['time'])
@@ -1353,7 +1355,7 @@ def do_test():
         with open(junit_filename, 'wb') as file:
             file.write(xml.tostring(root))
 
-    if len(failed_tests) > 0:
+    if failed_test_count > 0:
         exit(1)
 
 # main
