@@ -1268,6 +1268,7 @@ add_subdirectory(mdsdcl) # Requires MdsIpShr
 add_subdirectory(servershr) # Requires libMdsdcl
 add_subdirectory(hdf5) # Requires TdiShr
 add_subdirectory(mdssql)
+add_subdirectory(mdsodbc)
 # add_subdirectory(mdsvme)
 
 # Language Binding Libraries
