@@ -116,7 +116,8 @@ def localTest(name, label, testStages) {
                         setupStage().call()
                         
                         stage("Build") {
-                            sh "deploy/build.py -j --build --install -DCMAKE_BUILD_TYPE=Debug"
+                            // TODO: Adjust -j value
+                            sh "deploy/build.py -j8 --build --install -DCMAKE_BUILD_TYPE=Debug"
                         }
                         
                         testStages.call()
