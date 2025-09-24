@@ -66,7 +66,7 @@ if not os.path.exists(distributions_filename):
         'Components: alpha stable cmake', # TODO: Remove cmake
         'Description: MDSplus packages',
         'SignWith: MDSplus',
-        ''
+        '',
         'Origin: MDSplus Development Team', # TODO: Remove MDSplus-previous
         'Label: MDSplus-previous',
         'Codename: MDSplus-previous',
@@ -74,7 +74,7 @@ if not os.path.exists(distributions_filename):
         'Components: alpha stable cmake', # TODO: Remove cmake
         'Description: Previous MDSplus packages',
         'SignWith: MDSplus',
-        ''
+        '',
     ]
 
     with open(distributions_filename, 'wt') as file:
