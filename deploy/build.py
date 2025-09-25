@@ -343,9 +343,18 @@ dist_dir              = os.path.join(args.workspace, 'dist')
 # System Configuration
 
 # Environment variables must be handled before finding any programs
+env_file_vars = {} # TODO: Rename?
 if args.env_file is not None and args.dockerimage is None:
     lines = open(args.env_file).readlines()
     for line in lines:
+        line = line.strip()
+        
+        if len(line) == 0:
+            continue
+
+        if line[0] == '#':
+            continue
+
         name, value = line.split('=', maxsplit=1)
         
         # TODO: Improve
@@ -355,7 +364,9 @@ if args.env_file is not None and args.dockerimage is None:
         )
         value = result.stdout.decode().strip()
 
-        os.environ[name] = value
+        env_file_vars[name] = value
+
+os.environ.update(env_file_vars)
 
 cmake = shutil.which('cmake')
 if cmake is None and args.dockerimage is not None:
@@ -688,6 +699,7 @@ def do_interactive():
     do_configure_filename = os.path.join(args.workspace, 'do-configure.sh')
     with open(do_configure_filename, 'wt') as file:
         file.write('#!/bin/bash\n')
+        file.write(f'mkdir "{build_dir}"\n')
         file.write(f'cd "{build_dir}"\n')
         file.write(f"{cmake} {source_dir} -DCMAKE_INSTALL_PREFIX={usr_local_mdsplus_dir} {' '.join(cmake_args)} \"$@\"\n")
     os.chmod(do_configure_filename, 0o755)
@@ -740,6 +752,7 @@ def do_interactive():
 
     # Start with a clean environment so we don't inherit anything pointing to the system MDSplus installation
     interactive_env = dict()
+    interactive_env.update(env_file_vars) # from --env-file
 
     passthrough_env_names = ['HOME', 'TERM', 'DISPLAY', 'XAUTHORITY']
     for name in passthrough_env_names:
