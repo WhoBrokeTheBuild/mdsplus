@@ -1397,8 +1397,14 @@ def do_test():
             system_out = xml.SubElement(testcase, 'system-out')
             system_out.text = open(test['log'], 'rt').read()
             
-            # The BEL character causes issues when loaded into Jenkins
-            system_out.text = system_out.text.replace('\x07', '')
+            # Characters like BEL or ESC causes issues when loaded into Jenkins
+            invalid_characters = [
+                '\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08', # \x09 is \t, \x0A is \n
+                '\x0B', '\x0C', # \x0D is \r
+                '\x0E', '\x0F', '\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19', '\x1A', '\x1B', '\x1C', '\x1D', '\x1E', '\x1F'
+            ]
+            for c in invalid_characters:
+                system_out.text = system_out.text.replace(c, '�')
 
             if not test['passed']:
                 failure = xml.SubElement(testcase, 'failure')
